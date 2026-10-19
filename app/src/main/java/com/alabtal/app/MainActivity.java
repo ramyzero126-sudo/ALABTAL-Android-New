@@ -338,22 +338,17 @@ public class MainActivity extends Activity {
         inspectButton.setOnClickListener(v -> {
             String script =
                     "(function() {" +
-                    "var out = {};" +
-                    "var root = document.querySelector('[class*=\\\"Live3PLDashboard-Root\\\"]');" +
-                    "if (!root) return JSON.stringify({error:'dashboard root not found'});" +
-                    "var nodes = root.querySelectorAll('*');" +
-                    "var re = /live3pl|rider|table|card|row|list|grid|pagination|empty|rooster/i;" +
-                    "for (var i = 0; i < nodes.length; i++) {" +
-                    " var e = nodes[i];" +
-                    " var tag = (e.tagName || '').toLowerCase();" +
-                    " var cls = typeof e.className === 'string' ? e.className : '';" +
-                    " if (!re.test(cls) && !e.matches('[class*=\\\"Live3PLDashboard-Root\\\"]')) continue;" +
-                    " cls = cls.trim().replace(/\\s+/g, '.').slice(0, 140);" +
-                    " if (!cls) cls = '(no-class)';" +
-                    " var key = tag + '.' + cls;" +
-                    " out[key] = (out[key] || 0) + 1;" +
-                    "}" +
-                    "return JSON.stringify(out);" +
+                    "var t = document.querySelector('table.cape-table');" +
+                    "if (!t) return JSON.stringify({error:'table not found'});" +
+                    "var headers = Array.from(t.querySelectorAll('thead th')).map(function(e) {" +
+                    " return {tag:e.tagName, className:typeof e.className==='string'?e.className:''};" +
+                    "});" +
+                    "var rows = Array.from(t.querySelectorAll('tbody tr')).map(function(r) {" +
+                    " return Array.from(r.children).map(function(c) {" +
+                    "  return {tag:c.tagName, className:typeof c.className==='string'?c.className:'', childCount:c.children.length};" +
+                    " });" +
+                    "});" +
+                    "return JSON.stringify({headerStructure:headers,rowCount:rows.length,rows:rows.slice(0,3)});" +
                     "})()";
 
             webView.evaluateJavascript(script, result -> {
