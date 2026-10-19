@@ -21,10 +21,15 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import com.google.firebase.auth.FirebaseAuth;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.ArrayList;
 
 public class MainActivity extends Activity {
 
     private FirebaseAuth auth;
+    private final ArrayList<String> liveRiderNames = new ArrayList<>();
+    private final ArrayList<String> liveRiderStates = new ArrayList<>();
 
     private final int navy = Color.rgb(18, 38, 67);
     private final int green = Color.rgb(31, 155, 104);
@@ -271,34 +276,29 @@ public class MainActivity extends Activity {
         section.setTypeface(null, Typeface.BOLD);
         content.addView(section, params(-1, 32));
 
-        TextView empty = makeText(
-                "No live rider data connected yet.",
-                12, Color.GRAY);
-        LinearLayout.LayoutParams emptyParams = params(-1, -2);
-        emptyParams.bottomMargin = dp(14);
-        content.addView(empty, emptyParams);
+        if (liveRiderNames.isEmpty()) {
+            TextView empty = makeText(
+                    "No live roster imported yet. Open Live 3PL Roster and tap Sync.",
+                    12, Color.GRAY);
+            LinearLayout.LayoutParams emptyParams = params(-1, -2);
+            emptyParams.bottomMargin = dp(14);
+            content.addView(empty, emptyParams);
+        } else {
+            TextView count = makeText(
+                    "Live riders: " + liveRiderNames.size(), 12, Color.GRAY);
+            LinearLayout.LayoutParams countParams = params(-1, -2);
+            countParams.bottomMargin = dp(10);
+            content.addView(count, countParams);
 
-        addRiderCard(content, "Rider example 01", "Demo");
-        addRiderCard(content, "Rider example 02", "Demo");
-        addRiderCard(content, "Rider example 03", "Demo");
+            for (int i = 0; i < liveRiderNames.size(); i++) {
+                addRiderCard(content, liveRiderNames.get(i),
+                        liveRiderStates.get(i));
+            }
+        }
 
         Button logout = new Button(this);
         logout.setText("Log out");
-        logout.setAllCaps(false);
-        logout.setOnClickListener(v -> { auth.signOut(); showLogin(); });
-
-        LinearLayout.LayoutParams logoutParams = params(-1, 48);
-        logoutParams.topMargin = dp(12);
-        content.addView(logout, logoutParams);
-
-        scroll.addView(content);
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                -1, 0, 1));
-
-        setContentView(root);
-    }
-
-    private void showRosterPage(String username) {
+        log    private void showRosterPage(String username) {
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -321,11 +321,11 @@ public class MainActivity extends Activity {
         titleParams.leftMargin = dp(8);
         toolbar.addView(title, titleParams);
 
-        Button inspectButton = new Button(this);
-        inspectButton.setText("Inspect");
-        inspectButton.setTextColor(Color.WHITE);
-        inspectButton.setAllCaps(false);
-        toolbar.addView(inspectButton, params(-2, 48));
+        Button syncButton = new Button(this);
+        syncButton.setText("Sync");
+        syncButton.setTextColor(Color.WHITE);
+        syncButton.setAllCaps(false);
+        toolbar.addView(syncButton, params(-2, 48));
 
         root.addView(toolbar, params(-1, -2));
 
@@ -333,32 +333,95 @@ public class MainActivity extends Activity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                syncRosterData(view, false);
+            }
+        });
 
-        inspectButton.setOnClickListener(v -> {
-            String script =
-                    "(function() {" +
-                    "var t = document.querySelector('table.cape-table');" +
-                    "if (!t) return JSON.stringify({error:'table not found'});" +
-                    "var headers = Array.from(t.querySelectorAll('thead th')).map(function(e) {" +
-                    " return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ').slice(0,60);" +
-                    "});" +
-                    "var rows = Array.from(t.querySelectorAll('tbody tr')).slice(0,3).map(function(r) {" +
-                    " return {childTags:Array.from(r.children).map(function(c){return c.tagName;})," +
-                    " directCellCount:Array.from(r.children).filter(function(c){return c.tagName==='TD';}).length};" +
-                    "});" +
-                    "return JSON.stringify({headers:headers,rowCount:t.querySelectorAll('tbody tr').length,rows:rows});" +
-                    "})()";
+        syncButton.setOnClickListener(v -> syncRosterData(webView, true));
 
-            webView.evaluateJavascript(script, result -> {
-                String safe = result == null ? "" : result;
-                safe = safe.replace("\\n", " ").replace("\\r", " ");
-                if (safe.length() > 5000) {
-                    safe = safe.substring(0, 5000) + "... (truncated)";
+        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+
+        webView.loadUrl(
+                "https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl"
+        );
+    }
+
+    private void syncRosterData(WebView webView, boolean notify) {
+        String script =
+                "(function() {" +
+                "var t = document.querySelector('table.cape-table');" +
+                "if (!t) return [];" +
+                "function txt(e) {" +
+                "return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ');" +
+                "}" +
+                "return Array.from(t.querySelectorAll('tbody tr')).map(function(r) {" +
+                "var c = Array.from(r.children).filter(function(e) {return e.tagName==='TD';});" +
+                "if (c.length < 10) return null;" +
+                "var name = txt(c[0]);" +
+                "var state = txt(c[9]);" +
+                "if (!name) return null;" +
+                "return {name:name, state:state || 'Unknown'};" +
+                "}).filter(function(x) {return x !== null;});" +
+                "})()";
+
+        webView.evaluateJavascript(script, result -> {
+            try {
+                JSONArray rows = new JSONArray(result == null ? "[]" : result);
+                if (rows.length() == 0) {
+                    if (notify) {
+                        Toast.makeText(this,
+                                "No roster rows found. Wait for the table, then tap Sync.",
+                                Toast.LENGTH_LONG).show();
+                    }
+                    return;
                 }
 
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle("Page structure (no text values)")
+                ArrayList<String> names = new ArrayList<>();
+                ArrayList<String> states = new ArrayList<>();
+
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.getJSONObject(i);
+                    String name = row.optString("name", "").trim();
+                    String state = row.optString("state", "Unknown").trim();
+                    if (!name.isEmpty()) {
+                        names.add(name);
+                        states.add(state.isEmpty() ? "Unknown" : state);
+                    }
+                }
+
+                if (names.isEmpty()) {
+                    if (notify) {
+                        Toast.makeText(this, "No rider names found in the table.",
+                                Toast.LENGTH_LONG).show();
+                    }
+                    return;
+                }
+
+                liveRiderNames.clear();
+                liveRiderNames.addAll(names);
+                liveRiderStates.clear();
+                liveRiderStates.addAll(states);
+
+                if (notify) {
+                    Toast.makeText(this,
+                            "Imported " + names.size() +
+                                    " riders. Tap Back to view the dashboard.",
+                            Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception e) {
+                if (notify) {
+                    Toast.makeText(this, "Could not read roster table.",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+ture (no text values)")
                         .setMessage(safe)
                         .setPositiveButton("OK", null)
                         .show();
