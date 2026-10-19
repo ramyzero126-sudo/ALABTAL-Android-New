@@ -17,6 +17,9 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
 import com.google.firebase.auth.FirebaseAuth;
 
 public class MainActivity extends Activity {
@@ -256,21 +259,7 @@ public class MainActivity extends Activity {
         rosterParams.topMargin = dp(14);
         header.addView(rosterButton, rosterParams);
 
-        rosterButton.setOnClickListener(v -> {
-            try {
-                Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl")
-                );
-                startActivity(intent);
-            } catch (Exception e) {
-                Toast.makeText(
-                    this,
-                    "Could not open the company roster",
-                    Toast.LENGTH_LONG
-                ).show();
-            }
-        });
+        rosterButton.setOnClickListener(v -> showRosterPage(username));
 
         root.addView(header, params(-1, -2));
 
@@ -308,4 +297,43 @@ public class MainActivity extends Activity {
 
         setContentView(root);
     }
+
+    private void showRosterPage(String username) {
+        LinearLayout root = column();
+        root.setBackgroundColor(background);
+
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(8), dp(6), dp(12), dp(6));
+        toolbar.setBackgroundColor(navy);
+
+        Button back = new Button(this);
+        back.setText("← Back");
+        back.setTextColor(Color.WHITE);
+        back.setAllCaps(false);
+        back.setOnClickListener(v -> showDashboard(username));
+        toolbar.addView(back, params(-2, 48));
+
+        TextView title = makeText("Live 3PL Roster", 16, Color.WHITE);
+        title.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams titleParams =
+                new LinearLayout.LayoutParams(0, -2, 1);
+        titleParams.leftMargin = dp(8);
+        toolbar.addView(title, titleParams);
+        root.addView(toolbar, params(-1, -2));
+
+        WebView webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        webView.setWebViewClient(new WebViewClient());
+
+        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+
+        webView.loadUrl(
+                "https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl"
+        );
+    }
+
 }
