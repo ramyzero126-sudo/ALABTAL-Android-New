@@ -339,12 +339,16 @@ public class MainActivity extends Activity {
             String script =
                     "(function() {" +
                     "var out = {};" +
-                    "var nodes = document.querySelectorAll('body *');" +
+                    "var root = document.querySelector('[class*=\\\"Live3PLDashboard-Root\\\"]');" +
+                    "if (!root) return JSON.stringify({error:'dashboard root not found'});" +
+                    "var nodes = root.querySelectorAll('*');" +
+                    "var re = /live3pl|rider|table|card|row|list|grid|pagination|empty|rooster/i;" +
                     "for (var i = 0; i < nodes.length; i++) {" +
                     " var e = nodes[i];" +
                     " var tag = (e.tagName || '').toLowerCase();" +
                     " var cls = typeof e.className === 'string' ? e.className : '';" +
-                    " cls = cls.trim().replace(/\\s+/g, '.').slice(0, 90);" +
+                    " if (!re.test(cls) && !e.matches('[class*=\\\"Live3PLDashboard-Root\\\"]')) continue;" +
+                    " cls = cls.trim().replace(/\\s+/g, '.').slice(0, 140);" +
                     " if (!cls) cls = '(no-class)';" +
                     " var key = tag + '.' + cls;" +
                     " out[key] = (out[key] || 0) + 1;" +
