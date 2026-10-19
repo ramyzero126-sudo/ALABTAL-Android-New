@@ -35,33 +35,51 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Diagnose AndroidManifest
+      - name: Repair and validate AndroidManifest
         shell: bash
         run: |
-          echo "=== MANIFEST LINE NUMBERS ==="
-          nl -ba app/src/main/AndroidManifest.xml | head -n 20
-
-          echo "=== MANIFEST RAW BYTES ==="
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/AndroidManifest.xml")
-          data = p.read_bytes()
-          print("First 160 bytes:", repr(data[:160]))
-          print("XML declaration count:", data.count(b"<?xml"))
-          print("UTF-8 BOM:", data.startswith(b"\xef\xbb\xbf"))
-          PY
-
-          echo "=== VALIDATE XML ==="
-          python3 - <<'PY'
+          import re
           import xml.etree.ElementTree as ET
-          ET.parse("app/src/main/AndroidManifest.xml")
-          print("Manifest XML syntax is valid.")
+
+          path = Path("app/src/main/AndroidManifest.xml")
+          data = path.read_text(encoding="utf-8-sig").lstrip()
+
+          # Convert HTML-escaped XML delimiters back to actual XML.
+          data = data.replace("&lt;", "<").replace("&gt;", ">")
+          data = data.replace("&quot;", '"')
+
+          # Decode escaped ampersands only when not part of an XML entity.
+          data = re.sub(
+              r"&amp;(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)",
+              "&",
+              data
+          )
+
+          # Ensure the XML declaration is at the beginning only once.
+          declaration = '<?xml version="1.0" encoding="utf-8"?>'
+          data = re.sub(r'<\?xml[^?]*\?>', '', data).lstrip()
+          if data.startswith("<manifest"):
+              data = declaration + "\n" + data
+          elif data.startswith(declaration):
+              pass
+          else:
+              raise SystemExit("Manifest does not begin with a valid XML root.")
+
+          path.write_text(data.rstrip() + "\n", encoding="utf-8")
+          ET.parse(path)
+
+          print("Manifest repaired and XML syntax is valid.")
+          print("First lines:")
+          for i, line in enumerate(path.read_text().splitlines()[:5], 1):
+              print(f"{i}: {line}")
           PY
 
       - name: Show project configuration
         shell: bash
         run: |
-          echo "=== ROOT FILES ==="
+          echo "=== PROJECT FILES ==="
           ls -la
           echo "=== SETTINGS ==="
           cat -n settings.gradle
