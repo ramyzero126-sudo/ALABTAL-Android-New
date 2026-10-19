@@ -30,11 +30,13 @@ public class MainActivity extends Activity {
     private FirebaseAuth auth;
     private final ArrayList<String> liveRiderNames = new ArrayList<>();
     private final ArrayList<String> liveRiderStates = new ArrayList<>();
+    private int rosterSyncAttempts = 0;
 
-    private final int navy = Color.rgb(18, 38, 67);
-    private final int green = Color.rgb(31, 155, 104);
-    private final int background = Color.rgb(245, 247, 250);
-    private final int textColor = Color.rgb(35, 48, 65);
+
+    private final int navy = Color.rgb(10, 22, 40);
+    private final int green = Color.rgb(16, 185, 129);
+    private final int background = Color.rgb(7, 15, 29);
+    private final int textColor = Color.rgb(240, 246, 252);
 
     private int dp(float value) {
         return (int) (value *
@@ -72,9 +74,29 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         auth = FirebaseAuth.getInstance();
+        loadSavedRoster();
         getWindow().setStatusBarColor(navy);
         getWindow().setNavigationBarColor(navy);
         showLogin();
+    }
+
+    private void loadSavedRoster() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("live_roster", MODE_PRIVATE);
+        try {
+            JSONArray names = new JSONArray(prefs.getString("names", "[]"));
+            JSONArray states = new JSONArray(prefs.getString("states", "[]"));
+            liveRiderNames.clear();
+            liveRiderStates.clear();
+            for (int i = 0; i < names.length(); i++) {
+                liveRiderNames.add(names.optString(i, ""));
+                liveRiderStates.add(i < states.length()
+                        ? states.optString(i, "Unknown") : "Unknown");
+            }
+        } catch (Exception ignored) {
+            liveRiderNames.clear();
+            liveRiderStates.clear();
+        }
     }
 
     private void showLogin() {
@@ -193,116 +215,186 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
-    private void addRiderCard(LinearLayout list,
-                              String rider, String status) {
+        private void addRiderCard(LinearLayout list, String rider, String status) {
+        int muted = Color.rgb(160, 178, 199);
+        String state = status == null || status.trim().isEmpty()
+                ? "Unknown" : status.trim();
+        String normalized = state.toLowerCase(java.util.Locale.ROOT);
+
+        int badgeText = Color.rgb(252, 196, 91);
+        int badgeBackground = Color.rgb(76, 61, 35);
+
+        if (normalized.contains("offline") || normalized.contains("inactive")
+                || normalized.contains("not active")) {
+            badgeText = Color.rgb(252, 129, 129);
+            badgeBackground = Color.rgb(76, 39, 52);
+        } else if (normalized.contains("active") || normalized.contains("online")
+                || normalized.contains("available")) {
+            badgeText = Color.rgb(52, 211, 153);
+            badgeBackground = Color.rgb(20, 69, 65);
+        }
+
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(12), dp(9), dp(12), dp(9));
-        card.setBackground(shape(Color.WHITE, 12));
-        card.setElevation(dp(1));
+        card.setPadding(dp(14), dp(14), dp(14), dp(14));
+        card.setBackground(shape(Color.rgb(18, 33, 54), 16));
+        card.setElevation(dp(2));
 
         LinearLayout info = column();
-        TextView name = makeText(rider, 14, textColor);
+
+        TextView name = makeText(rider, 15, textColor);
         name.setTypeface(null, Typeface.BOLD);
         info.addView(name, params(-1, -2));
 
-        TextView role = makeText("Rider", 11, Color.GRAY);
+        TextView role = makeText("مندوب توصيل  •  RIDER", 11, muted);
         LinearLayout.LayoutParams roleParams = params(-1, -2);
-        roleParams.topMargin = dp(2);
+        roleParams.topMargin = dp(5);
         info.addView(role, roleParams);
 
         card.addView(info, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        TextView badge = makeText(status, 11, green);
+        TextView badge = makeText(state, 11, badgeText);
         badge.setTypeface(null, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(9), dp(6), dp(9), dp(6));
-        badge.setBackground(shape(
-                Color.rgb(229, 246, 238), 8));
+        badge.setPadding(dp(10), dp(7), dp(10), dp(7));
+        badge.setBackground(shape(badgeBackground, 10));
         card.addView(badge, params(-2, -2));
 
         LinearLayout.LayoutParams cardParams = params(-1, -2);
-        cardParams.bottomMargin = dp(8);
+        cardParams.bottomMargin = dp(10);
         list.addView(card, cardParams);
     }
 
-    private void showDashboard(String username) {
+        private void showDashboard(String username) {
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
         LinearLayout header = column();
-        header.setPadding(dp(20), dp(20), dp(20), dp(18));
+        header.setPadding(dp(20), dp(22), dp(20), dp(20));
         header.setBackground(shape(navy, 0));
 
-        TextView logo = makeText("ALABTAL", 22, Color.WHITE);
-        logo.setTypeface(null, Typeface.BOLD);
-        header.addView(logo, params(-1, -2));
+        TextView brand = makeText("ALABTAL  •  OPERATIONS", 12, green);
+        brand.setTypeface(null, Typeface.BOLD);
+        header.addView(brand, params(-1, -2));
 
-        TextView title = makeText("Live Shift Dashboard",
-                17, Color.WHITE);
+        TextView title = makeText("لوحة متابعة الشيفت", 24, Color.WHITE);
+        title.setTypeface(null, Typeface.BOLD);
         LinearLayout.LayoutParams titleParams = params(-1, -2);
-        titleParams.topMargin = dp(8);
+        titleParams.topMargin = dp(10);
         header.addView(title, titleParams);
 
-        TextView welcome = makeText(
-                "Signed-in user: " + username, 12,
-                Color.rgb(220, 230, 240));
+        TextView subtitle = makeText("LIVE SHIFT DASHBOARD", 12,
+                Color.rgb(169, 190, 213));
+        subtitle.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams subtitleParams = params(-1, -2);
+        subtitleParams.topMargin = dp(4);
+        header.addView(subtitle, subtitleParams);
+
+        TextView welcome = makeText("أهلاً، " + username + "  •  Signed in",
+                12, Color.rgb(200, 215, 231));
         LinearLayout.LayoutParams welcomeParams = params(-1, -2);
-        welcomeParams.topMargin = dp(5);
+        welcomeParams.topMargin = dp(12);
         header.addView(welcome, welcomeParams);
 
         Button rosterButton = new Button(this);
-        rosterButton.setText("🌐 Import Live 3PL Roster");
+        rosterButton.setText("🌐  فتح الروستر الحي  |  LIVE 3PL ROSTER");
         rosterButton.setTextColor(Color.WHITE);
-        rosterButton.setTextSize(14);
+        rosterButton.setTextSize(13);
         rosterButton.setAllCaps(false);
-        rosterButton.setBackground(shape(green, 10));
+        rosterButton.setBackground(shape(green, 12));
 
-        LinearLayout.LayoutParams rosterParams = params(-1, 48);
-        rosterParams.topMargin = dp(14);
+        LinearLayout.LayoutParams rosterParams = params(-1, 50);
+        rosterParams.topMargin = dp(18);
         header.addView(rosterButton, rosterParams);
-
         rosterButton.setOnClickListener(v -> showRosterPage(username));
 
         root.addView(header, params(-1, -2));
 
         ScrollView scroll = new ScrollView(this);
-        LinearLayout content = column();
-        content.setPadding(dp(16), dp(16), dp(16), dp(16));
+        scroll.setFillViewport(true);
 
-        TextView section = makeText("Riders", 18, navy);
+        LinearLayout content = column();
+        content.setPadding(dp(16), dp(20), dp(16), dp(20));
+
+        TextView section = makeText("المناديب  |  RIDERS", 18, Color.WHITE);
         section.setTypeface(null, Typeface.BOLD);
-        content.addView(section, params(-1, 32));
+        content.addView(section, params(-1, -2));
+
+        TextView hint = makeText("حالات المناديب المستوردة من اللايف",
+                12, Color.rgb(156, 176, 199));
+        LinearLayout.LayoutParams hintParams = params(-1, -2);
+        hintParams.topMargin = dp(5);
+        hintParams.bottomMargin = dp(14);
+        content.addView(hint, hintParams);
 
         if (liveRiderNames.isEmpty()) {
+            LinearLayout emptyCard = column();
+            emptyCard.setPadding(dp(16), dp(18), dp(16), dp(18));
+            emptyCard.setBackground(shape(Color.rgb(18, 33, 54), 16));
+
+            TextView emptyTitle = makeText("لا توجد بيانات للمناديب بعد",
+                    15, Color.WHITE);
+            emptyTitle.setTypeface(null, Typeface.BOLD);
+            emptyCard.addView(emptyTitle, params(-1, -2));
+
             TextView empty = makeText(
-                    "No live roster imported yet. Open Live 3PL Roster and tap Sync.",
-                    12, Color.GRAY);
+                    "افتح الروستر الحي واضغط Sync لاستيراد البيانات.\n"
+                    + "Open Live 3PL Roster and tap Sync.",
+                    12, Color.rgb(160, 178, 199));
             LinearLayout.LayoutParams emptyParams = params(-1, -2);
-            emptyParams.bottomMargin = dp(14);
-            content.addView(empty, emptyParams);
+            emptyParams.topMargin = dp(8);
+            emptyCard.addView(empty, emptyParams);
+            content.addView(emptyCard, params(-1, -2));
         } else {
+            LinearLayout countCard = new LinearLayout(this);
+            countCard.setOrientation(LinearLayout.HORIZONTAL);
+            countCard.setGravity(Gravity.CENTER_VERTICAL);
+            countCard.setPadding(dp(14), dp(13), dp(14), dp(13));
+            countCard.setBackground(shape(Color.rgb(18, 46, 57), 14));
+
+            LinearLayout countInfo = column();
+            TextView countLabel = makeText(
+                    "إجمالي المناديب  •  TOTAL RIDERS",
+                    11, Color.rgb(160, 210, 202));
+            countInfo.addView(countLabel, params(-1, -2));
+
             TextView count = makeText(
-                    "Live riders: " + liveRiderNames.size(), 12, Color.GRAY);
-            LinearLayout.LayoutParams countParams = params(-1, -2);
-            countParams.bottomMargin = dp(10);
-            content.addView(count, countParams);
+                    String.valueOf(liveRiderNames.size()), 25, Color.WHITE);
+            count.setTypeface(null, Typeface.BOLD);
+            LinearLayout.LayoutParams numberParams = params(-1, -2);
+            numberParams.topMargin = dp(3);
+            countInfo.addView(count, numberParams);
+
+            countCard.addView(countInfo, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+            TextView liveTag = makeText("● LIVE DATA", 10, green);
+            liveTag.setTypeface(null, Typeface.BOLD);
+            countCard.addView(liveTag, params(-2, -2));
+
+            LinearLayout.LayoutParams countCardParams = params(-1, -2);
+            countCardParams.bottomMargin = dp(16);
+            content.addView(countCard, countCardParams);
 
             for (int i = 0; i < liveRiderNames.size(); i++) {
-                addRiderCard(content, liveRiderNames.get(i),
-                        liveRiderStates.get(i));
+                String riderState = i < liveRiderStates.size()
+                        ? liveRiderStates.get(i) : "Unknown";
+                addRiderCard(content, liveRiderNames.get(i), riderState);
             }
         }
 
         Button logout = new Button(this);
-        logout.setText("Log out");
+        logout.setText("تسجيل الخروج  |  LOG OUT");
+        logout.setTextColor(Color.WHITE);
         logout.setAllCaps(false);
+        logout.setBackground(shape(Color.rgb(29, 44, 65), 12));
         logout.setOnClickListener(v -> {
             auth.signOut();
             showLogin();
         });
+
         LinearLayout.LayoutParams logoutParams = params(-1, 48);
         logoutParams.topMargin = dp(12);
         content.addView(logout, logoutParams);
@@ -387,6 +479,13 @@ public class MainActivity extends Activity {
             try {
                 JSONArray rows = new JSONArray(result == null ? "[]" : result);
                 if (rows.length() == 0) {
+                    if (!notify && rosterSyncAttempts < 10) {
+                        rosterSyncAttempts++;
+                        webView.postDelayed(
+                                () -> syncRosterData(webView, false), 1500);
+                        return;
+                    }
+                    rosterSyncAttempts = 0;
                     if (notify) {
                         Toast.makeText(this,
                                 "No roster rows found. Wait for the table, then tap Sync.",
@@ -416,10 +515,23 @@ public class MainActivity extends Activity {
                     return;
                 }
 
+                rosterSyncAttempts = 0;
                 liveRiderNames.clear();
                 liveRiderNames.addAll(names);
                 liveRiderStates.clear();
                 liveRiderStates.addAll(states);
+
+                try {
+                    org.json.JSONArray savedNames = new org.json.JSONArray();
+                    org.json.JSONArray savedStates = new org.json.JSONArray();
+                    for (String name : liveRiderNames) savedNames.put(name);
+                    for (String state : liveRiderStates) savedStates.put(state);
+                    getSharedPreferences("live_roster", MODE_PRIVATE).edit()
+                            .putString("names", savedNames.toString())
+                            .putString("states", savedStates.toString())
+                            .apply();
+                } catch (Exception ignored) {
+                }
 
                 if (notify) {
                     Toast.makeText(this,
