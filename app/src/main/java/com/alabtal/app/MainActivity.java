@@ -341,14 +341,13 @@ public class MainActivity extends Activity {
                     "var t = document.querySelector('table.cape-table');" +
                     "if (!t) return JSON.stringify({error:'table not found'});" +
                     "var headers = Array.from(t.querySelectorAll('thead th')).map(function(e) {" +
-                    " return {tag:e.tagName, className:typeof e.className==='string'?e.className:''};" +
+                    " return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ').slice(0,60);" +
                     "});" +
-                    "var rows = Array.from(t.querySelectorAll('tbody tr')).map(function(r) {" +
-                    " return Array.from(r.children).map(function(c) {" +
-                    "  return {tag:c.tagName, className:typeof c.className==='string'?c.className:'', childCount:c.children.length};" +
-                    " });" +
+                    "var rows = Array.from(t.querySelectorAll('tbody tr')).slice(0,3).map(function(r) {" +
+                    " return {childTags:Array.from(r.children).map(function(c){return c.tagName;})," +
+                    " directCellCount:Array.from(r.children).filter(function(c){return c.tagName==='TD';}).length};" +
                     "});" +
-                    "return JSON.stringify({headerStructure:headers,rowCount:rows.length,rows:rows.slice(0,3)});" +
+                    "return JSON.stringify({headers:headers,rowCount:t.querySelectorAll('tbody tr').length,rows:rows});" +
                     "})()";
 
             webView.evaluateJavascript(script, result -> {
