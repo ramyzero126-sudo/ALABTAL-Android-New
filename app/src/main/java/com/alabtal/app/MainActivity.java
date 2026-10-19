@@ -320,6 +320,13 @@ public class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(0, -2, 1);
         titleParams.leftMargin = dp(8);
         toolbar.addView(title, titleParams);
+
+        Button inspectButton = new Button(this);
+        inspectButton.setText("Inspect");
+        inspectButton.setTextColor(Color.WHITE);
+        inspectButton.setAllCaps(false);
+        toolbar.addView(inspectButton, params(-2, 48));
+
         root.addView(toolbar, params(-1, -2));
 
         WebView webView = new WebView(this);
@@ -327,6 +334,38 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient());
+
+        inspectButton.setOnClickListener(v -> {
+            String script =
+                    "(function() {" +
+                    "var out = {};" +
+                    "var nodes = document.querySelectorAll('body *');" +
+                    "for (var i = 0; i < nodes.length; i++) {" +
+                    " var e = nodes[i];" +
+                    " var tag = (e.tagName || '').toLowerCase();" +
+                    " var cls = typeof e.className === 'string' ? e.className : '';" +
+                    " cls = cls.trim().replace(/\\s+/g, '.').slice(0, 90);" +
+                    " if (!cls) cls = '(no-class)';" +
+                    " var key = tag + '.' + cls;" +
+                    " out[key] = (out[key] || 0) + 1;" +
+                    "}" +
+                    "return JSON.stringify(out);" +
+                    "})()";
+
+            webView.evaluateJavascript(script, result -> {
+                String safe = result == null ? "" : result;
+                safe = safe.replace("\\n", " ").replace("\\r", " ");
+                if (safe.length() > 5000) {
+                    safe = safe.substring(0, 5000) + "... (truncated)";
+                }
+
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Page structure (no text values)")
+                        .setMessage(safe)
+                        .setPositiveButton("OK", null)
+                        .show();
+            });
+        });
 
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
