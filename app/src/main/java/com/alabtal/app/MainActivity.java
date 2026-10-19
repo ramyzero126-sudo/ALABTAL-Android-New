@@ -2,6 +2,8 @@
 package com.alabtal.app;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -15,8 +17,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class MainActivity extends Activity {
+
+    private FirebaseAuth auth;
 
     private final int navy = Color.rgb(18, 38, 67);
     private final int green = Color.rgb(31, 155, 104);
@@ -58,6 +63,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        auth = FirebaseAuth.getInstance();
         getWindow().setStatusBarColor(navy);
         getWindow().setNavigationBarColor(navy);
         showLogin();
@@ -99,7 +105,7 @@ public class MainActivity extends Activity {
         hintParams.topMargin = dp(7);
         card.addView(hint, hintParams);
 
-        TextView userLabel = makeText("Username / Employee ID",
+        TextView userLabel = makeText("Email address",
                 13, textColor);
         userLabel.setTypeface(null, Typeface.BOLD);
         LinearLayout.LayoutParams label1 = params(-1, -2);
@@ -109,7 +115,7 @@ public class MainActivity extends Activity {
         EditText username = new EditText(this);
         username.setSingleLine(true);
         username.setTextSize(15);
-        username.setHint("Enter your username");
+        username.setHint("Enter your email");
         username.setPadding(dp(12), 0, dp(12), 0);
         username.setBackground(shape(background, 10));
         card.addView(username, params(-1, 50));
@@ -162,9 +168,18 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            Toast.makeText(this,
-                    "Demo only: authentication is not connected",
-                    Toast.LENGTH_LONG).show();
+            login.setEnabled(false);
+            auth.signInWithEmailAndPassword(user, pass)
+                    .addOnCompleteListener(this, task -> {
+                        login.setEnabled(true);
+                        if (task.isSuccessful()) {
+                            showDashboard(user);
+                        } else {
+                            Toast.makeText(this,
+                                    "Sign-in failed. Check your email and password.",
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
         });
 
         setContentView(root);
@@ -230,6 +245,33 @@ public class MainActivity extends Activity {
         welcomeParams.topMargin = dp(5);
         header.addView(welcome, welcomeParams);
 
+        Button rosterButton = new Button(this);
+        rosterButton.setText("🌐 Import Live 3PL Roster");
+        rosterButton.setTextColor(Color.WHITE);
+        rosterButton.setTextSize(14);
+        rosterButton.setAllCaps(false);
+        rosterButton.setBackground(shape(green, 10));
+
+        LinearLayout.LayoutParams rosterParams = params(-1, 48);
+        rosterParams.topMargin = dp(14);
+        header.addView(rosterButton, rosterParams);
+
+        rosterButton.setOnClickListener(v -> {
+            try {
+                Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl")
+                );
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(
+                    this,
+                    "Could not open the company roster",
+                    Toast.LENGTH_LONG
+                ).show();
+            }
+        });
+
         root.addView(header, params(-1, -2));
 
         ScrollView scroll = new ScrollView(this);
@@ -254,7 +296,7 @@ public class MainActivity extends Activity {
         Button logout = new Button(this);
         logout.setText("Log out");
         logout.setAllCaps(false);
-        logout.setOnClickListener(v -> showLogin());
+        logout.setOnClickListener(v -> { auth.signOut(); showLogin(); });
 
         LinearLayout.LayoutParams logoutParams = params(-1, 48);
         logoutParams.topMargin = dp(12);
