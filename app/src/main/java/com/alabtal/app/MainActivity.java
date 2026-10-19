@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -30,6 +32,11 @@ public class MainActivity extends Activity {
     private FirebaseAuth auth;
     private final ArrayList<String> liveRiderNames = new ArrayList<>();
     private final ArrayList<String> liveRiderStates = new ArrayList<>();
+    private final ArrayList<JSONObject> liveRiderDetails = new ArrayList<>();
+    private final Handler rosterHandler = new Handler(Looper.getMainLooper());
+    private Runnable rosterAutoSync;
+    private String lastRosterSyncLabel = "لم تتم المزامنة";
+
     private int rosterSyncAttempts = 0;
 
 
@@ -86,16 +93,22 @@ public class MainActivity extends Activity {
         try {
             JSONArray names = new JSONArray(prefs.getString("names", "[]"));
             JSONArray states = new JSONArray(prefs.getString("states", "[]"));
+            JSONArray details = new JSONArray(prefs.getString("details", "[]"));
             liveRiderNames.clear();
             liveRiderStates.clear();
+            liveRiderDetails.clear();
             for (int i = 0; i < names.length(); i++) {
                 liveRiderNames.add(names.optString(i, ""));
                 liveRiderStates.add(i < states.length()
                         ? states.optString(i, "Unknown") : "Unknown");
+                JSONObject detail = details.optJSONObject(i);
+                liveRiderDetails.add(detail == null ? new JSONObject() : detail);
             }
+            lastRosterSyncLabel = prefs.getString("last_sync", "لم تتم المزامنة");
         } catch (Exception ignored) {
             liveRiderNames.clear();
             liveRiderStates.clear();
+            liveRiderDetails.clear();
         }
     }
 
@@ -215,12 +228,12 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
-        private void addRiderCard(LinearLayout list, String rider, String status) {
+        private void addRiderCard(LinearLayout list, String rider,
+                              String status, JSONObject detail) {
         int muted = Color.rgb(160, 178, 199);
         String state = status == null || status.trim().isEmpty()
                 ? "Unknown" : status.trim();
         String normalized = state.toLowerCase(java.util.Locale.ROOT);
-
         int badgeText = Color.rgb(252, 196, 91);
         int badgeBackground = Color.rgb(76, 61, 35);
 
@@ -234,40 +247,54 @@ public class MainActivity extends Activity {
             badgeBackground = Color.rgb(20, 69, 65);
         }
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.HORIZONTAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(14), dp(14), dp(14), dp(14));
-        card.setBackground(shape(Color.rgb(18, 33, 54), 16));
-        card.setElevation(dp(2));
+        if (detail == null) detail = new JSONObject();
 
-        LinearLayout info = column();
+        LinearLayout card = column();
+        card.setPadding(dp(12), dp(11), dp(12), dp(11));
+        card.setBackground(shape(Color.rgb(18, 33, 54), 14));
 
-        TextView name = makeText(rider, 15, textColor);
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name = makeText(rider, 14, textColor);
         name.setTypeface(null, Typeface.BOLD);
-        info.addView(name, params(-1, -2));
-
-        TextView role = makeText("مندوب توصيل  •  RIDER", 11, muted);
-        LinearLayout.LayoutParams roleParams = params(-1, -2);
-        roleParams.topMargin = dp(5);
-        info.addView(role, roleParams);
-
-        card.addView(info, new LinearLayout.LayoutParams(
+        top.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        TextView badge = makeText(state, 11, badgeText);
+        TextView badge = makeText(state, 10, badgeText);
         badge.setTypeface(null, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(10), dp(7), dp(10), dp(7));
-        badge.setBackground(shape(badgeBackground, 10));
-        card.addView(badge, params(-2, -2));
+        badge.setPadding(dp(8), dp(5), dp(8), dp(5));
+        badge.setBackground(shape(badgeBackground, 9));
+        top.addView(badge, params(-2, -2));
+        card.addView(top, params(-1, -2));
+
+        String session = detail.optString("session", "");
+        String wallet = detail.optString("wallet", "");
+        String performance = detail.optString("performance", "");
+        String acceptance = detail.optString("acceptance", "");
+        String worked = detail.optString("worked", "");
+
+        String line1 = "الشيفت: " + (session.isEmpty() ? "—" : session)
+                + "   •   المحفظة: " + (wallet.isEmpty() ? "—" : wallet);
+        String line2 = "التوصيلات/الأداء: "
+                + (performance.isEmpty() ? "—" : performance)
+                + "   •   القبول: " + (acceptance.isEmpty() ? "—" : acceptance);
+        String line3 = "وقت العمل: " + (worked.isEmpty() ? "—" : worked);
+
+        TextView metrics = makeText(line1 + "\n" + line2 + "\n" + line3,
+                10, muted);
+        metrics.setMaxLines(3);
+        LinearLayout.LayoutParams metricParams = params(-1, -2);
+        metricParams.topMargin = dp(7);
+        card.addView(metrics, metricParams);
 
         LinearLayout.LayoutParams cardParams = params(-1, -2);
-        cardParams.bottomMargin = dp(10);
+        cardParams.bottomMargin = dp(8);
         list.addView(card, cardParams);
     }
 
-        private void showDashboard(String username) {
+    private void showDashboard(String username) {
+        stopRosterAutoSync();
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -322,7 +349,7 @@ public class MainActivity extends Activity {
         section.setTypeface(null, Typeface.BOLD);
         content.addView(section, params(-1, -2));
 
-        TextView hint = makeText("حالات المناديب المستوردة من اللايف",
+        TextView hint = makeText("آخر تحديث ناجح: " + lastRosterSyncLabel,
                 12, Color.rgb(156, 176, 199));
         LinearLayout.LayoutParams hintParams = params(-1, -2);
         hintParams.topMargin = dp(5);
@@ -381,7 +408,9 @@ public class MainActivity extends Activity {
             for (int i = 0; i < liveRiderNames.size(); i++) {
                 String riderState = i < liveRiderStates.size()
                         ? liveRiderStates.get(i) : "Unknown";
-                addRiderCard(content, liveRiderNames.get(i), riderState);
+                addRiderCard(content, liveRiderNames.get(i), riderState,
+                            i < liveRiderDetails.size()
+                                    ? liveRiderDetails.get(i) : new JSONObject());
             }
         }
 
@@ -404,7 +433,29 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+    private void stopRosterAutoSync() {
+        if (rosterAutoSync != null) {
+            rosterHandler.removeCallbacks(rosterAutoSync);
+            rosterAutoSync = null;
+        }
+    }
+
+    private void startRosterAutoSync(WebView webView) {
+        stopRosterAutoSync();
+        rosterAutoSync = new Runnable() {
+            @Override
+            public void run() {
+                if (webView.getParent() != null) {
+                    syncRosterData(webView, false);
+                    rosterHandler.postDelayed(this, 30000);
+                }
+            }
+        };
+        rosterHandler.postDelayed(rosterAutoSync, 30000);
+    }
+
     private void showRosterPage(String username) {
+        stopRosterAutoSync();
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -422,8 +473,7 @@ public class MainActivity extends Activity {
 
         TextView title = makeText("Live 3PL Roster", 16, Color.WHITE);
         title.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams titleParams =
-                new LinearLayout.LayoutParams(0, -2, 1);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1);
         titleParams.leftMargin = dp(8);
         toolbar.addView(title, titleParams);
 
@@ -432,7 +482,6 @@ public class MainActivity extends Activity {
         syncButton.setTextColor(Color.WHITE);
         syncButton.setAllCaps(false);
         toolbar.addView(syncButton, params(-2, 48));
-
         root.addView(toolbar, params(-1, -2));
 
         WebView webView = new WebView(this);
@@ -444,17 +493,14 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 syncRosterData(view, false);
+                startRosterAutoSync(view);
             }
         });
 
         syncButton.setOnClickListener(v -> syncRosterData(webView, true));
-
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
-
-        webView.loadUrl(
-                "https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl"
-        );
+        webView.loadUrl("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl");
     }
 
     private void syncRosterData(WebView webView, boolean notify) {
@@ -462,17 +508,28 @@ public class MainActivity extends Activity {
                 "(function() {" +
                 "var t = document.querySelector('table.cape-table');" +
                 "if (!t) return [];" +
-                "function txt(e) {" +
-                "return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ');" +
-                "}" +
+                "function txt(e) {return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ');}" +
+                "var hs = Array.from(t.querySelectorAll('thead th')).map(txt);" +
+                "function idx(re, fallback) {for (var i=0;i<hs.length;i++) if(re.test(hs[i])) return i; return fallback;}" +
+                "function val(c, re, fallback) {var i=idx(re,fallback); return i<c.length ? txt(c[i]) : '';}" +
                 "return Array.from(t.querySelectorAll('tbody tr')).map(function(r) {" +
-                "var c = Array.from(r.children).filter(function(e) {return e.tagName==='TD';});" +
-                "if (c.length < 10) return null;" +
-                "var name = txt(c[0]);" +
-                "var state = txt(c[9]);" +
-                "if (!name) return null;" +
-                "return {name:name, state:state || 'Unknown'};" +
-                "}).filter(function(x) {return x !== null;});" +
+                "var c=Array.from(r.querySelectorAll('td'));" +
+                "if(c.length<10) return null;" +
+                "var raw=(c[0].innerText || c[0].textContent || '').split(/\\n+/).map(function(x){return x.trim();});" +
+                "var nm=''; for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}" +
+                "if(!nm) nm=txt(c[0]); if(!nm) return null;" +
+                "return {name:nm," +
+                "state:val(c,/rider state/i,9)||'Unknown'," +
+                "session:val(c,/current session/i,1)," +
+                "performance:val(c,/performance/i,2)," +
+                "worked:val(c,/time worked/i,3)," +
+                "acceptance:val(c,/acceptance rate/i,4)," +
+                "wallet:val(c,/wallet balance/i,5)," +
+                "breaks:val(c,/^breaks$/i,6)," +
+                "breakTime:val(c,/breaks time/i,7)," +
+                "late:val(c,/late time/i,8)," +
+                "location:val(c,/location/i,10)};" +
+                "}).filter(function(x){return x!==null;});" +
                 "})()";
 
         webView.evaluateJavascript(script, result -> {
@@ -481,37 +538,39 @@ public class MainActivity extends Activity {
                 if (rows.length() == 0) {
                     if (!notify && rosterSyncAttempts < 10) {
                         rosterSyncAttempts++;
-                        webView.postDelayed(
-                                () -> syncRosterData(webView, false), 1500);
+                        webView.postDelayed(() -> syncRosterData(webView, false), 1500);
                         return;
                     }
                     rosterSyncAttempts = 0;
-                    if (notify) {
-                        Toast.makeText(this,
-                                "No roster rows found. Wait for the table, then tap Sync.",
-                                Toast.LENGTH_LONG).show();
-                    }
+                    if (notify) Toast.makeText(this,
+                            "No roster rows found. Wait for the table, then tap Sync.",
+                            Toast.LENGTH_LONG).show();
                     return;
                 }
 
                 ArrayList<String> names = new ArrayList<>();
                 ArrayList<String> states = new ArrayList<>();
+                ArrayList<JSONObject> details = new ArrayList<>();
 
                 for (int i = 0; i < rows.length(); i++) {
                     JSONObject row = rows.getJSONObject(i);
                     String name = row.optString("name", "").trim();
-                    String state = row.optString("state", "Unknown").trim();
-                    if (!name.isEmpty()) {
-                        names.add(name);
-                        states.add(state.isEmpty() ? "Unknown" : state);
+                    if (name.isEmpty()) continue;
+
+                    names.add(name);
+                    states.add(row.optString("state", "Unknown"));
+                    JSONObject detail = new JSONObject();
+                    String[] keys = {"session", "performance", "worked", "acceptance",
+                            "wallet", "breaks", "breakTime", "late", "location"};
+                    for (String key : keys) {
+                        detail.put(key, row.optString(key, ""));
                     }
+                    details.add(detail);
                 }
 
                 if (names.isEmpty()) {
-                    if (notify) {
-                        Toast.makeText(this, "No rider names found in the table.",
-                                Toast.LENGTH_LONG).show();
-                    }
+                    if (notify) Toast.makeText(this, "No rider names found in the table.",
+                            Toast.LENGTH_LONG).show();
                     return;
                 }
 
@@ -520,31 +579,37 @@ public class MainActivity extends Activity {
                 liveRiderNames.addAll(names);
                 liveRiderStates.clear();
                 liveRiderStates.addAll(states);
+                liveRiderDetails.clear();
+                liveRiderDetails.addAll(details);
 
-                try {
-                    org.json.JSONArray savedNames = new org.json.JSONArray();
-                    org.json.JSONArray savedStates = new org.json.JSONArray();
-                    for (String name : liveRiderNames) savedNames.put(name);
-                    for (String state : liveRiderStates) savedStates.put(state);
-                    getSharedPreferences("live_roster", MODE_PRIVATE).edit()
-                            .putString("names", savedNames.toString())
-                            .putString("states", savedStates.toString())
-                            .apply();
-                } catch (Exception ignored) {
-                }
+                lastRosterSyncLabel = new java.text.SimpleDateFormat(
+                        "HH:mm:ss", java.util.Locale.getDefault())
+                        .format(new java.util.Date());
 
-                if (notify) {
-                    Toast.makeText(this,
-                            "Imported " + names.size() +
-                                    " riders. Tap Back to view the dashboard.",
-                            Toast.LENGTH_LONG).show();
-                }
+                JSONArray savedNames = new JSONArray();
+                JSONArray savedStates = new JSONArray();
+                JSONArray savedDetails = new JSONArray();
+                for (String name : names) savedNames.put(name);
+                for (String state : states) savedStates.put(state);
+                for (JSONObject detail : details) savedDetails.put(detail);
+
+                getSharedPreferences("live_roster", MODE_PRIVATE).edit()
+                        .putString("names", savedNames.toString())
+                        .putString("states", savedStates.toString())
+                        .putString("details", savedDetails.toString())
+                        .putString("last_sync", lastRosterSyncLabel)
+                        .apply();
+
+                if (notify) Toast.makeText(this,
+                        "Updated " + names.size() + " riders. Last sync: "
+                                + lastRosterSyncLabel + ". Tap Back to view dashboard.",
+                        Toast.LENGTH_LONG).show();
             } catch (Exception e) {
-                if (notify) {
-                    Toast.makeText(this, "Could not read roster table.",
-                            Toast.LENGTH_LONG).show();
-                }
+                if (notify) Toast.makeText(this, "Could not read roster table.",
+                        Toast.LENGTH_LONG).show();
             }
         });
     }
+
+
 }
