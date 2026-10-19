@@ -298,7 +298,21 @@ public class MainActivity extends Activity {
 
         Button logout = new Button(this);
         logout.setText("Log out");
-        log    private void showRosterPage(String username) {
+        logout.setAllCaps(false);
+        logout.setOnClickListener(v -> {
+            auth.signOut();
+            showLogin();
+        });
+        LinearLayout.LayoutParams logoutParams = params(-1, 48);
+        logoutParams.topMargin = dp(12);
+        content.addView(logout, logoutParams);
+
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        setContentView(root);
+    }
+
+    private void showRosterPage(String username) {
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -421,19 +435,4 @@ public class MainActivity extends Activity {
             }
         });
     }
-ture (no text values)")
-                        .setMessage(safe)
-                        .setPositiveButton("OK", null)
-                        .show();
-            });
-        });
-
-        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
-
-        webView.loadUrl(
-                "https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl"
-        );
-    }
-
 }
