@@ -35,29 +35,40 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Check project files
+      - name: Diagnose AndroidManifest
         shell: bash
         run: |
-          echo "=== PROJECT FILES ==="
-          ls -la
-          echo "=== ANDROID MANIFEST ==="
-          cat -n app/src/main/AndroidManifest.xml
-          echo "=== APP BUILD FILE ==="
-          cat -n app/build.gradle
+          echo "=== MANIFEST LINE NUMBERS ==="
+          nl -ba app/src/main/AndroidManifest.xml | head -n 20
 
-      - name: Validate AndroidManifest XML
-        shell: bash
-        run: |
+          echo "=== MANIFEST RAW BYTES ==="
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/AndroidManifest.xml")
+          data = p.read_bytes()
+          print("First 160 bytes:", repr(data[:160]))
+          print("XML declaration count:", data.count(b"<?xml"))
+          print("UTF-8 BOM:", data.startswith(b"\xef\xbb\xbf"))
+          PY
+
+          echo "=== VALIDATE XML ==="
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
-          path = "app/src/main/AndroidManifest.xml"
-          try:
-              ET.parse(path)
-              print("Manifest XML syntax is valid.")
-          except Exception as exc:
-              print(f"Manifest XML syntax error: {exc}")
-              raise
+          ET.parse("app/src/main/AndroidManifest.xml")
+          print("Manifest XML syntax is valid.")
           PY
+
+      - name: Show project configuration
+        shell: bash
+        run: |
+          echo "=== ROOT FILES ==="
+          ls -la
+          echo "=== SETTINGS ==="
+          cat -n settings.gradle
+          echo "=== ROOT BUILD ==="
+          cat -n build.gradle
+          echo "=== APP BUILD ==="
+          cat -n app/build.gradle
 
       - name: Build debug APK
         shell: bash
