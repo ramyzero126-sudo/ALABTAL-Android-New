@@ -250,12 +250,12 @@ public class MainActivity extends Activity {
         if (detail == null) detail = new JSONObject();
 
         LinearLayout card = column();
-        card.setPadding(dp(12), dp(11), dp(12), dp(11));
-        card.setBackground(shape(Color.rgb(18, 33, 54), 14));
+        card.setPadding(dp(9), dp(8), dp(9), dp(8));
+        card.setBackground(shape(Color.rgb(16, 16, 16), 12));
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = makeText(rider, 14, textColor);
+        TextView name = makeText(rider, 13, Color.WHITE);
         name.setTypeface(null, Typeface.BOLD);
         top.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -263,7 +263,7 @@ public class MainActivity extends Activity {
         TextView badge = makeText(state, 10, badgeText);
         badge.setTypeface(null, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(8), dp(5), dp(8), dp(5));
+        badge.setPadding(dp(7), dp(3), dp(7), dp(3));
         badge.setBackground(shape(badgeBackground, 9));
         top.addView(badge, params(-2, -2));
         card.addView(top, params(-1, -2));
@@ -285,8 +285,25 @@ public class MainActivity extends Activity {
                 10, muted);
         metrics.setMaxLines(3);
         LinearLayout.LayoutParams metricParams = params(-1, -2);
-        metricParams.topMargin = dp(7);
+        metricParams.topMargin = dp(5);
         card.addView(metrics, metricParams);
+
+        String orderId = detail.optString("orderId", "").trim();
+        String orderStage = detail.optString("orderStage", "").trim();
+        String orderDetails = detail.optString("orderDetails", "").trim();
+        if (!orderId.isEmpty() || !orderStage.isEmpty() || !orderDetails.isEmpty()) {
+            TextView orderView = makeText(
+                    "الأوردر: " + (orderId.isEmpty() ? "—" : orderId)
+                    + "\\nالمرحلة: " + (orderStage.isEmpty() ? "غير متاحة" : orderStage)
+                    + (orderDetails.isEmpty() ? "" : "\\n" + orderDetails),
+                    10, Color.rgb(249, 115, 22));
+            orderView.setMaxLines(4);
+            orderView.setPadding(dp(8), dp(6), dp(8), dp(6));
+            orderView.setBackground(shape(Color.rgb(29, 29, 29), 8));
+            LinearLayout.LayoutParams orderParams = params(-1, -2);
+            orderParams.topMargin = dp(5);
+            card.addView(orderView, orderParams);
+        }
 
         LinearLayout.LayoutParams cardParams = params(-1, -2);
         cardParams.bottomMargin = dp(8);
@@ -504,6 +521,50 @@ public class MainActivity extends Activity {
     }
 
     private void syncRosterData(WebView webView, boolean notify) {
+        if (notify) {
+            String inspectScript =
+                    "(function() {" +
+                    "function visible(e) {var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
+                    "return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';}" +
+                    "var all=Array.from(document.querySelectorAll('body *'));" +
+                    "var hits=all.filter(function(e) {" +
+                    "if (!visible(e)) return false;" +
+                    "var t=(e.innerText||e.textContent||'').trim();" +
+                    "return /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered/i.test(t);" +
+                    "});" +
+                    "hits.sort(function(a,b){return (a.innerText||'').length-(b.innerText||'').length;});" +
+                    "var out=hits.map(function(e){return (e.innerText||e.textContent||'').trim();" +
+                    "}).filter(function(t,i,a){return t && a.indexOf(t)===i && t.length<1800;});" +
+                    "return out.slice(0,8).join('\\n---\\n').slice(0,3500);" +
+                    "})()";
+            webView.evaluateJavascript(inspectScript, result -> {
+                String text = result == null ? "" : result;
+                if (text.length() > 2) {
+                    try {
+                        Object decoded = new org.json.JSONTokener(text).nextValue();
+                        text = decoded == null ? "" : decoded.toString();
+                    } catch (Exception ignored) {}
+                    final String inspectionText = text;
+                    new android.app.AlertDialog.Builder(this)
+                            .setTitle("فحص تفاصيل الأوردر")
+                            .setMessage(inspectionText)
+                            .setPositiveButton("نسخ", (dialog, which) -> {
+                                android.content.ClipboardManager cm =
+                                        (android.content.ClipboardManager)
+                                        getSystemService(CLIPBOARD_SERVICE);
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText(
+                                        "RosterOrderInspect", inspectionText));
+                                Toast.makeText(this, "تم النسخ", Toast.LENGTH_SHORT).show();
+                            })
+                            .setNegativeButton("إغلاق", null)
+                            .show();
+                } else {
+                    Toast.makeText(this,
+                            "مش لاقي نص مراحل الأوردر ظاهر في الصفحة.",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        }
         String script =
                 "(function() {" +
                 "var t = document.querySelector('table.cape-table');" +
