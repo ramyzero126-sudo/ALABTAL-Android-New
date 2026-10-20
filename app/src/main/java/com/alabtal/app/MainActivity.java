@@ -492,36 +492,34 @@ public class MainActivity extends Activity {
 
         header.addView(toolbar, params(-1, 48));
 
-        TextView title = makeText("لوحة متابعة الشيفت", 24, Color.WHITE);
-        title.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams titleParams = params(-1, -2);
-        titleParams.topMargin = dp(10);
-        header.addView(title, titleParams);
+        LinearLayout ledBanner = new LinearLayout(this);
+        ledBanner.setGravity(Gravity.CENTER_VERTICAL);
+        ledBanner.setPadding(dp(10), dp(8), dp(10), dp(8));
+        ledBanner.setBackground(shape(Color.rgb(12, 12, 12), 10));
+        android.graphics.drawable.GradientDrawable ledBg =
+                (android.graphics.drawable.GradientDrawable) ledBanner.getBackground();
+        ledBg.setStroke(dp(1), green);
 
-        TextView subtitle = makeText("LIVE SHIFT DASHBOARD", 12,
-                Color.rgb(169, 190, 213));
-        subtitle.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams subtitleParams = params(-1, -2);
-        subtitleParams.topMargin = dp(4);
-        header.addView(subtitle, subtitleParams);
+        TextView ledText = makeText(
+                "   AL ABTAL TALABAT طنطا     •     AL ABTAL TALABAT طنطا     •     ",
+                17, green);
+        ledText.setTypeface(null, Typeface.BOLD);
+        ledText.setSingleLine(true);
+        ledText.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        ledText.setMarqueeRepeatLimit(-1);
+        ledText.setSelected(true);
+        ledBanner.addView(ledText, new LinearLayout.LayoutParams(
+                -1, dp(30)));
+
+        LinearLayout.LayoutParams ledParams = params(-1, 48);
+        ledParams.topMargin = dp(12);
+        header.addView(ledBanner, ledParams);
 
         TextView welcome = makeText("أهلاً، " + username + "  •  Signed in",
                 12, Color.rgb(200, 215, 231));
         LinearLayout.LayoutParams welcomeParams = params(-1, -2);
         welcomeParams.topMargin = dp(12);
         header.addView(welcome, welcomeParams);
-
-        Button rosterButton = new Button(this);
-        rosterButton.setText("🌐  فتح الروستر الحي  |  LIVE 3PL ROSTER");
-        rosterButton.setTextColor(Color.WHITE);
-        rosterButton.setTextSize(13);
-        rosterButton.setAllCaps(false);
-        rosterButton.setBackground(shape(green, 12));
-
-        LinearLayout.LayoutParams rosterParams = params(-1, 50);
-        rosterParams.topMargin = dp(18);
-        header.addView(rosterButton, rosterParams);
-        rosterButton.setOnClickListener(v -> showRosterPage(username));
 
         root.addView(header, params(-1, -2));
 
@@ -547,6 +545,32 @@ public class MainActivity extends Activity {
         hintParams.topMargin = dp(5);
         hintParams.bottomMargin = dp(14);
         content.addView(hint, hintParams);
+
+        Button refreshButton = new Button(this);
+        refreshButton.setText("⟳  تحديث البيانات  •  تلقائي كل 30 ثانية");
+        refreshButton.setTextColor(Color.WHITE);
+        refreshButton.setTextSize(13);
+        refreshButton.setTypeface(null, Typeface.BOLD);
+        refreshButton.setAllCaps(false);
+        refreshButton.setBackground(shape(green, 12));
+        LinearLayout.LayoutParams refreshParams = params(-1, 46);
+        refreshParams.bottomMargin = dp(16);
+        content.addView(refreshButton, refreshParams);
+        refreshButton.setOnClickListener(v -> {
+            if (rosterWebView != null) {
+                refreshButton.setEnabled(false);
+                refreshButton.setText("⟳  جاري تحديث البيانات...");
+                syncRosterData(rosterWebView, true);
+                refreshButton.postDelayed(() -> {
+                    if (refreshButton.getParent() != null) {
+                        refreshButton.setEnabled(true);
+                        refreshButton.setText("⟳  تحديث البيانات  •  تلقائي كل 30 ثانية");
+                    }
+                }, 2500);
+            } else {
+                Toast.makeText(this, "مصدر البيانات غير جاهز", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         if (liveRiderNames.isEmpty()) {
             LinearLayout emptyCard = column();
@@ -608,22 +632,6 @@ public class MainActivity extends Activity {
                                     ? liveRiderDetails.get(i) : new JSONObject());
             }
         }
-
-        Button logout = new Button(this);
-        logout.setText("تسجيل الخروج  |  LOG OUT");
-        logout.setTextColor(Color.WHITE);
-        logout.setAllCaps(false);
-        logout.setBackground(shape(Color.rgb(29, 44, 65), 12));
-        logout.setOnClickListener(v -> {
-            stopRosterAutoSync();
-            dashboardVisible = false;
-            auth.signOut();
-            showLogin();
-        });
-
-        LinearLayout.LayoutParams logoutParams = params(-1, 48);
-        logoutParams.topMargin = dp(12);
-        content.addView(logout, logoutParams);
 
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
