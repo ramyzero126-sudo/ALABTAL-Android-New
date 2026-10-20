@@ -519,7 +519,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        syncButton.setOnClickListener(v -> syncRosterData(webView, true));
+        syncButton.setOnClickListener(v -> syncRosterData(webView, false));
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
         webView.loadUrl("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl");
