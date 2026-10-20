@@ -249,13 +249,80 @@ public class MainActivity extends Activity {
         return v;
     }
 
+
+    private void addRiderMetric(LinearLayout row, String label, String value) {
+        int orange = Color.rgb(255, 151, 55);
+
+        LinearLayout tile = column();
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(5), dp(9), dp(5), dp(9));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.rgb(24, 21, 18));
+        bg.setCornerRadius(dp(11));
+        bg.setStroke(dp(1), Color.rgb(105, 62, 30));
+        tile.setBackground(bg);
+
+        TextView title = makeText(label, 11, orange);
+        title.setGravity(Gravity.CENTER);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setMaxLines(2);
+        tile.addView(title, params(-1, -2));
+
+        String shown = value == null || value.trim().isEmpty()
+                ? "—" : value.trim();
+
+        TextView data = makeText(shown, 13, Color.WHITE);
+        data.setGravity(Gravity.CENTER);
+        data.setTypeface(null, Typeface.BOLD);
+        data.setMaxLines(3);
+        data.setPadding(0, dp(5), 0, 0);
+        tile.addView(data, params(-1, -2));
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        lp.leftMargin = dp(3);
+        lp.rightMargin = dp(3);
+        row.addView(tile, lp);
+    }
+
+    private void addRiderInfoBox(LinearLayout parent, String label,
+                                 String value, boolean orderBox) {
+        int orange = Color.rgb(255, 151, 55);
+
+        LinearLayout box = column();
+        box.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(orderBox
+                ? Color.rgb(32, 22, 15) : Color.rgb(23, 23, 23));
+        bg.setCornerRadius(dp(10));
+        bg.setStroke(dp(1), orderBox
+                ? Color.rgb(132, 75, 30) : Color.rgb(53, 43, 35));
+        box.setBackground(bg);
+
+        TextView title = makeText(label, 11, orange);
+        title.setTypeface(null, Typeface.BOLD);
+        box.addView(title, params(-1, -2));
+
+        String shown = value == null || value.trim().isEmpty()
+                ? (orderBox ? "جاري تحديد مكان الأوردر" : "غير متاح")
+                : value.trim();
+
+        TextView data = makeText(shown, 13, Color.rgb(245, 245, 245));
+        data.setMaxLines(orderBox ? 5 : 3);
+        LinearLayout.LayoutParams textLp = params(-1, -2);
+        textLp.topMargin = dp(3);
+        box.addView(data, textLp);
+
+        LinearLayout.LayoutParams lp = params(-1, -2);
+        lp.topMargin = dp(6);
+        parent.addView(box, lp);
+    }
+
     private void addRiderCard(LinearLayout list, String rider,
                               String status, JSONObject detail) {
-        final int orange = Color.rgb(255, 121, 0);
-        final int panel = Color.rgb(25, 25, 25);
-        final int muted = Color.rgb(175, 175, 175);
-        final int white = Color.rgb(245, 245, 245);
-
+        final int orange = Color.rgb(255, 139, 35);
         String state = status == null || status.trim().isEmpty()
                 ? "Unknown" : status.trim();
         String normalized = state.toLowerCase(java.util.Locale.ROOT);
@@ -275,42 +342,6 @@ public class MainActivity extends Activity {
 
         if (detail == null) detail = new JSONObject();
 
-        LinearLayout card = column();
-        card.setPadding(dp(14), dp(14), dp(14), dp(14));
-
-        android.graphics.drawable.GradientDrawable cardBg =
-                new android.graphics.drawable.GradientDrawable();
-        cardBg.setColor(Color.rgb(15, 15, 15));
-        cardBg.setCornerRadius(dp(18));
-        cardBg.setStroke(dp(1), orange);
-        card.setBackground(cardBg);
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView name = makeText(
-                rider == null || rider.trim().isEmpty() ? "مندوب بدون اسم" : rider,
-                17, white);
-        name.setTypeface(null, Typeface.BOLD);
-        name.setMaxLines(3);
-        top.addView(name, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView badge = makeText(state, 11, badgeText);
-        badge.setTypeface(null, Typeface.BOLD);
-        badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(10), dp(6), dp(10), dp(6));
-        badge.setBackground(shape(badgeBackground, 12));
-        top.addView(badge, params(-2, -2));
-        card.addView(top, params(-1, -2));
-
-        TextView section = makeText("بيانات الشيفت والمندوب", 12, orange);
-        section.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams sectionParams = params(-1, -2);
-        sectionParams.topMargin = dp(16);
-        card.addView(section, sectionParams);
-
         String session = detail.optString("session", "");
         String wallet = detail.optString("wallet", "");
         String performance = detail.optString("performance", "");
@@ -318,108 +349,87 @@ public class MainActivity extends Activity {
         String worked = detail.optString("worked", "");
         String plannedStart = detail.optString("plannedShiftStart", "");
         String plannedEnd = detail.optString("plannedShiftEnd", "");
-
-        LinearLayout shiftPanel = column();
-        shiftPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
-        shiftPanel.setBackground(shape(panel, 12));
-
-        TextView currentShift = makeText(
-                "الشيفت الحالي\n" + (session.isEmpty() ? "غير متاح" : session),
-                14, white);
-        currentShift.setMaxLines(4);
-        currentShift.setTypeface(null, Typeface.BOLD);
-        shiftPanel.addView(currentShift, params(-1, -2));
-
-        TextView walletView = makeText(
-                "المحفظة\n" + (wallet.isEmpty() ? "غير متاحة" : wallet),
-                14, white);
-        walletView.setMaxLines(3);
-        LinearLayout.LayoutParams walletParams = params(-1, -2);
-        walletParams.topMargin = dp(10);
-        shiftPanel.addView(walletView, walletParams);
-
-        LinearLayout.LayoutParams shiftParams = params(-1, -2);
-        shiftParams.topMargin = dp(8);
-        card.addView(shiftPanel, shiftParams);
-
-        TextView performanceTitle = makeText("الأداء وساعات العمل", 12, orange);
-        performanceTitle.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams performanceTitleParams = params(-1, -2);
-        performanceTitleParams.topMargin = dp(14);
-        card.addView(performanceTitle, performanceTitleParams);
-
-        LinearLayout statsPanel = column();
-        statsPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
-        statsPanel.setBackground(shape(panel, 12));
-
-        TextView performanceView = makeText(
-                "التوصيلات / الأداء\n"
-                + (performance.isEmpty() ? "غير متاح" : performance),
-                14, white);
-        performanceView.setMaxLines(4);
-        statsPanel.addView(performanceView, params(-1, -2));
-
-        TextView acceptanceView = makeText(
-                "نسبة القبول\n"
-                + (acceptance.isEmpty() ? "غير متاحة" : acceptance),
-                14, white);
-        acceptanceView.setMaxLines(3);
-        LinearLayout.LayoutParams acceptanceParams = params(-1, -2);
-        acceptanceParams.topMargin = dp(12);
-        statsPanel.addView(acceptanceView, acceptanceParams);
-
-        TextView workedView = makeText(
-                "وقت العمل\n" + (worked.isEmpty() ? "غير متاح" : worked),
-                14, white);
-        workedView.setMaxLines(3);
-        LinearLayout.LayoutParams workedParams = params(-1, -2);
-        workedParams.topMargin = dp(12);
-        statsPanel.addView(workedView, workedParams);
-
-        if (!plannedStart.isEmpty() || !plannedEnd.isEmpty()) {
-            TextView plannedView = makeText(
-                    "الشيفت المخطط\n"
-                    + formatShiftTime(plannedStart)
-                    + "\nإلى\n"
-                    + formatShiftTime(plannedEnd),
-                    13, Color.rgb(255, 175, 95));
-            plannedView.setMaxLines(5);
-            LinearLayout.LayoutParams plannedParams = params(-1, -2);
-            plannedParams.topMargin = dp(12);
-            statsPanel.addView(plannedView, plannedParams);
-        }
-
-        LinearLayout.LayoutParams statsParams = params(-1, -2);
-        statsParams.topMargin = dp(8);
-        card.addView(statsPanel, statsParams);
-
         String orderLocation = detail.optString("orderLocation", "").trim();
 
-        TextView orderTitle = makeText("مكان الأوردر", 12, orange);
-        orderTitle.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams orderTitleParams = params(-1, -2);
-        orderTitleParams.topMargin = dp(14);
-        card.addView(orderTitle, orderTitleParams);
+        LinearLayout card = column();
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
 
-        LinearLayout orderPanel = column();
-        orderPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
-        orderPanel.setBackground(shape(Color.rgb(30, 23, 17), 12));
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.rgb(12, 12, 12));
+        cardBg.setCornerRadius(dp(16));
+        cardBg.setStroke(dp(1), orange);
+        card.setBackground(cardBg);
+        card.setAlpha(0f);
+        card.setTranslationY(dp(5));
 
-        TextView orderView = makeText(
-                orderLocation.isEmpty()
-                        ? "جاري تحديد مكان الأوردر"
-                        : orderLocation,
-                14, white);
-        orderView.setMaxLines(5);
-        orderPanel.addView(orderView, params(-1, -2));
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
 
-        LinearLayout.LayoutParams orderPanelParams = params(-1, -2);
-        orderPanelParams.topMargin = dp(8);
-        card.addView(orderPanel, orderPanelParams);
+        TextView name = makeText(
+                rider == null || rider.trim().isEmpty()
+                        ? "مندوب بدون اسم" : rider,
+                16, Color.WHITE);
+        name.setTypeface(null, Typeface.BOLD);
+        name.setMaxLines(3);
+        name.setShadowLayer(dp(4), 0, 0, Color.rgb(125, 54, 8));
+        top.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        LinearLayout.LayoutParams cardParams = params(-1, -2);
-        cardParams.bottomMargin = dp(12);
-        list.addView(card, cardParams);
+        TextView badge = makeText(state, 11, badgeText);
+        badge.setTypeface(null, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(8), dp(5), dp(8), dp(5));
+        badge.setBackground(shape(badgeBackground, 10));
+        top.addView(badge, params(-2, -2));
+        card.addView(top, params(-1, -2));
+
+        LinearLayout metrics = new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout.LayoutParams metricsLp = params(-1, -2);
+        metricsLp.topMargin = dp(12);
+
+        addRiderMetric(metrics, "نسبة القبول", acceptance);
+        addRiderMetric(metrics, "وقت العمل", worked);
+
+        String planned = (!plannedStart.isEmpty() || !plannedEnd.isEmpty())
+                ? formatShiftTime(plannedStart) + " - "
+                    + formatShiftTime(plannedEnd)
+                : "—";
+        addRiderMetric(metrics, "الشيفت المخطط", planned);
+        card.addView(metrics, metricsLp);
+
+        LinearLayout details = column();
+        LinearLayout.LayoutParams detailsLp = params(-1, -2);
+        detailsLp.topMargin = dp(7);
+        card.addView(details, detailsLp);
+
+        addRiderInfoBox(details, "المحفظة", wallet, false);
+        addRiderInfoBox(details, "الأداء والتوصيلات", performance, false);
+        addRiderInfoBox(details, "الشيفت الحالي", session, false);
+        addRiderInfoBox(details, "مكان الأوردر", orderLocation, true);
+
+        LinearLayout.LayoutParams cardLp = params(-1, -2);
+        cardLp.bottomMargin = dp(11);
+        list.addView(card, cardLp);
+
+        card.animate().alpha(1f).translationY(0f).setDuration(260).start();
+
+        // نبضة برتقالية واحدة لكل كارت، بدون حلقة رسوم متحركة دائمة.
+        card.postDelayed(() -> {
+            if (card.isShown()) {
+                cardBg.setStroke(dp(2), Color.rgb(255, 180, 90));
+                card.invalidate();
+                card.postDelayed(() -> {
+                    if (card.isShown()) {
+                        cardBg.setStroke(dp(1), orange);
+                        card.invalidate();
+                    }
+                }, 350);
+            }
+        }, 300);
     }
 
     private void showDashboard(String username) {
@@ -492,28 +502,70 @@ public class MainActivity extends Activity {
 
         header.addView(toolbar, params(-1, 48));
 
+
+        final int ledOrange = Color.rgb(255, 145, 45);
+
         LinearLayout ledBanner = new LinearLayout(this);
         ledBanner.setGravity(Gravity.CENTER_VERTICAL);
-        ledBanner.setPadding(dp(10), dp(8), dp(10), dp(8));
-        ledBanner.setBackground(shape(Color.rgb(12, 12, 12), 10));
-        android.graphics.drawable.GradientDrawable ledBg =
-                (android.graphics.drawable.GradientDrawable) ledBanner.getBackground();
-        ledBg.setStroke(dp(1), green);
+        ledBanner.setPadding(dp(10), dp(7), dp(10), dp(7));
 
-        TextView ledText = makeText(
-                "   AL ABTAL TALABAT طنطا     •     AL ABTAL TALABAT طنطا     •     ",
-                17, green);
+        GradientDrawable ledBg = new GradientDrawable();
+        ledBg.setColor(Color.rgb(9, 9, 9));
+        ledBg.setCornerRadius(dp(10));
+        ledBg.setStroke(dp(1), ledOrange);
+        ledBanner.setBackground(ledBg);
+
+        TextView ledText = makeText("", 17, ledOrange);
         ledText.setTypeface(null, Typeface.BOLD);
         ledText.setSingleLine(true);
-        ledText.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
-        ledText.setMarqueeRepeatLimit(-1);
-        ledText.setSelected(true);
+        ledText.setGravity(Gravity.CENTER);
+        ledText.setShadowLayer(dp(7), 0, 0, Color.rgb(180, 70, 0));
         ledBanner.addView(ledText, new LinearLayout.LayoutParams(
                 -1, dp(30)));
 
         LinearLayout.LayoutParams ledParams = params(-1, 48);
         ledParams.topMargin = dp(12);
         header.addView(ledBanner, ledParams);
+
+        // Typewriter: كتابة حقيقية حرفاً بحرف، وليس نصاً متحركاً.
+        final String ledPhrase = "AL ABTAL TALABAT طنطا";
+        final Handler typeHandler = new Handler(Looper.getMainLooper());
+        final Runnable[] typing = new Runnable[1];
+        typing[0] = new Runnable() {
+            int index = 0;
+
+            @Override public void run() {
+                if (!ledBanner.isShown() || !dashboardVisible) return;
+
+                if (index < ledPhrase.length()) {
+                    index++;
+                    ledText.setText(ledPhrase.substring(0, index) + " ▌");
+                    typeHandler.postDelayed(this,
+                            ledPhrase.charAt(index - 1) == ' ' ? 150 : 90);
+                } else {
+                    ledText.setText(ledPhrase + "  •");
+                    // انتهت الكتابة؛ لا توجد حلقة توقيت دائمة.
+                }
+            }
+        };
+        ledBanner.postDelayed(typing[0], 250);
+
+        // توهج بسيط لمرة واحدة، مع إعادة الإطار للونه الأصلي.
+        ledBanner.postDelayed(() -> {
+            if (ledBanner.isShown()) {
+                ledBg.setStroke(dp(2), Color.rgb(255, 190, 105));
+                ledText.setShadowLayer(dp(9), 0, 0, ledOrange);
+                ledBanner.invalidate();
+                ledBanner.postDelayed(() -> {
+                    if (ledBanner.isShown()) {
+                        ledBg.setStroke(dp(1), ledOrange);
+                        ledText.setShadowLayer(dp(7), 0, 0,
+                                Color.rgb(180, 70, 0));
+                        ledBanner.invalidate();
+                    }
+                }, 500);
+            }
+        }, 500);
 
         TextView welcome = makeText("أهلاً، " + username + "  •  Signed in",
                 12, Color.rgb(200, 215, 231));
