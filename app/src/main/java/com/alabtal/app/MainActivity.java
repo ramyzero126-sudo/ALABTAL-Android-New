@@ -528,62 +528,62 @@ public class MainActivity extends Activity {
     private void syncRosterData(WebView webView, boolean notify) {
         if (notify) {
             String inspectScript =
-                    "(function() { try {" +
-                    "function visible(e) {var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
-                    "return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';}" +
+                    "(function(){try{" +
                     "function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                    "function visible(e){var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
+                    "return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}" +
                     "var sels=['[role=dialog]','[aria-modal=true]','dialog'," +
-                    "[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]'];" +
-                    "var found=[];" +
-                    "sels.forEach(function(sel){" +
-                    "try{document.querySelectorAll(sel).forEach(function(e){" +
-                    "if(!visible(e))return;" +
-                    "var t=clean(e.innerText||e.textContent);" +
-                    "if(t && /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered/i.test(t)){" +
-                    "var id=e.id||'';var cl=typeof e.className==='string'?e.className:'';" +
-                    "var item='TAG: '+e.tagName+' ID: '+id+' CLASS: '+cl+'\\nTEXT:\\n'+t;" +
-                    "if(!found.includes(item))found.push(item);" +
-                    "}" +
-                    "});}catch(err){}" +
+                    "[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]];" +
+                    "var dialogs=[];var seen=[];" +
+                    "sels.forEach(function(sel){try{document.querySelectorAll(sel).forEach(function(e){" +
+                    "if(!visible(e)||seen.indexOf(e)>=0)return;seen.push(e);" +
+                    "var tx=clean(e.innerText||e.textContent);" +
+                    "if(tx)dialogs.push({tag:e.tagName,id:e.id||'',className:typeof e.className==='string'?e.className:'',text:tx.slice(0,1800)});" +
+                    "});}catch(x){}});" +
+                    "var body=clean(document.body?document.body.innerText:'');" +
+                    "var lines=(document.body?(document.body.innerText||''):'').split('\\n').map(clean).filter(function(x){" +
+                    "return /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered|restaurant|customer|order status/i.test(x);" +
                     "});" +
-                    "if(!found.length){" +
-                    "var all=Array.from(document.querySelectorAll('body *')).filter(visible);" +
-                    "all.forEach(function(e){" +
-                    "var t=clean(e.innerText||e.textContent);" +
-                    "if(!t||t.length>2500||!/HF_[A-Z0-9]+/.test(t))return;" +
-                    "var par=e.parentElement;" +
-                    "if(par&&clean(par.innerText||par.textContent).length<2500)return;" +
-                    "found.push('TAG: '+e.tagName+' CLASS: '+(typeof e.className==='string'?e.className:'')+'\\nTEXT:\\n'+t);" +
-                    "});" +
-                    "}" +
-                    "return found.slice(0,6).join('\\n\\n==========\\n\\n').slice(0,6000);" +
-                    "} catch(err) { return 'JS_ERROR: ' + err.message; }})()";
+                    "return JSON.stringify({url:location.href,title:document.title,readyState:document.readyState," +
+                    "dialogCount:dialogs.length,dialogs:dialogs.slice(0,8),orderMatches:lines.slice(0,50),bodyPreview:body.slice(0,2500)});" +
+                    "}catch(e){return JSON.stringify({error:String(e),url:location.href});}})()";
             webView.evaluateJavascript(inspectScript, result -> {
-                String text = result == null ? "" : result;
-                if (text.length() > 2) {
-                    try {
-                        Object decoded = new org.json.JSONTokener(text).nextValue();
-                        text = decoded == null ? "" : decoded.toString();
-                    } catch (Exception ignored) {}
-                    final String inspectionText = text;
-                    new android.app.AlertDialog.Builder(this)
-                            .setTitle("فحص تفاصيل الأوردر")
-                            .setMessage(inspectionText)
-                            .setPositiveButton("نسخ", (dialog, which) -> {
-                                android.content.ClipboardManager cm =
-                                        (android.content.ClipboardManager)
-                                        getSystemService(CLIPBOARD_SERVICE);
-                                cm.setPrimaryClip(android.content.ClipData.newPlainText(
-                                        "RosterOrderInspect", inspectionText));
-                                Toast.makeText(this, "تم النسخ", Toast.LENGTH_SHORT).show();
-                            })
-                            .setNegativeButton("إغلاق", null)
-                            .show();
-                } else {
-                    Toast.makeText(this,
-                            "مش لاقي نص مراحل الأوردر ظاهر في الصفحة.",
-                            Toast.LENGTH_LONG).show();
+                String rawResult = result == null ? "<Java null>" : result;
+                String text;
+
+                try {
+                    Object decoded = new org.json.JSONTokener(rawResult).nextValue();
+                    if (decoded instanceof String) {
+                        text = (String) decoded;
+                    } else if (decoded != null) {
+                        text = decoded.toString();
+                    } else {
+                        text = "نتيجة الفحص فارغة.\nالنتيجة الخام: " + rawResult;
+                    }
+                } catch (Exception e) {
+                    text = "تعذر تحليل نتيجة الفحص: " + e
+                            + "\nالنتيجة الخام: " + rawResult;
                 }
+
+                if (text == null || text.trim().isEmpty() || "null".equals(text.trim())) {
+                    text = "نتيجة الفحص فارغة أو null."
+                            + "\nالنتيجة الخام: " + rawResult;
+                }
+
+                final String inspectionText = text;
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("فحص تفاصيل الأوردر")
+                        .setMessage(inspectionText)
+                        .setPositiveButton("نسخ", (dialog, which) -> {
+                            android.content.ClipboardManager cm =
+                                    (android.content.ClipboardManager)
+                                    getSystemService(CLIPBOARD_SERVICE);
+                            cm.setPrimaryClip(android.content.ClipData.newPlainText(
+                                    "RosterOrderInspect", inspectionText));
+                            Toast.makeText(this, "تم النسخ", Toast.LENGTH_SHORT).show();
+                        })
+                        .setNegativeButton("إغلاق", null)
+                        .show();
             });
             return;
         }
