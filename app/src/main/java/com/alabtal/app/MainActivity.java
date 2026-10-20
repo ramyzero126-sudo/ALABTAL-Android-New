@@ -526,16 +526,32 @@ public class MainActivity extends Activity {
                     "(function() {" +
                     "function visible(e) {var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
                     "return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';}" +
-                    "var all=Array.from(document.querySelectorAll('body *'));" +
-                    "var hits=all.filter(function(e) {" +
-                    "if (!visible(e)) return false;" +
-                    "var t=(e.innerText||e.textContent||'').trim();" +
-                    "return /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered/i.test(t);" +
+                    "function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                    "var sels=['[role=dialog]','[aria-modal=true]','dialog'," +
+                    "[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]'];" +
+                    "var found=[];" +
+                    "sels.forEach(function(sel){" +
+                    "try{document.querySelectorAll(sel).forEach(function(e){" +
+                    "if(!visible(e))return;" +
+                    "var t=clean(e.innerText||e.textContent);" +
+                    "if(t && /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered/i.test(t)){" +
+                    "var id=e.id||'';var cl=typeof e.className==='string'?e.className:'';" +
+                    "var item='TAG: '+e.tagName+' ID: '+id+' CLASS: '+cl+'\\nTEXT:\\n'+t;" +
+                    "if(!found.includes(item))found.push(item);" +
+                    "}" +
+                    "});}catch(err){}" +
                     "});" +
-                    "hits.sort(function(a,b){return (a.innerText||'').length-(b.innerText||'').length;});" +
-                    "var out=hits.map(function(e){return (e.innerText||e.textContent||'').trim();" +
-                    "}).filter(function(t,i,a){return t && a.indexOf(t)===i && t.length<1800;});" +
-                    "return out.slice(0,8).join('\\n---\\n').slice(0,3500);" +
+                    "if(!found.length){" +
+                    "var all=Array.from(document.querySelectorAll('body *')).filter(visible);" +
+                    "all.forEach(function(e){" +
+                    "var t=clean(e.innerText||e.textContent);" +
+                    "if(!t||t.length>2500||!/HF_[A-Z0-9]+/.test(t))return;" +
+                    "var par=e.parentElement;" +
+                    "if(par&&clean(par.innerText||par.textContent).length<2500)return;" +
+                    "found.push('TAG: '+e.tagName+' CLASS: '+(typeof e.className==='string'?e.className:'')+'\\nTEXT:\\n'+t);" +
+                    "});" +
+                    "}" +
+                    "return found.slice(0,6).join('\\n\\n==========\\n\\n').slice(0,6000);" +
                     "})()";
             webView.evaluateJavascript(inspectScript, result -> {
                 String text = result == null ? "" : result;
