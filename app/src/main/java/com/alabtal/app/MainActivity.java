@@ -528,7 +528,7 @@ public class MainActivity extends Activity {
     private void syncRosterData(WebView webView, boolean notify) {
         if (notify) {
             String inspectScript =
-                    "(function() {" +
+                    "(function() { try {" +
                     "function visible(e) {var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
                     "return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';}" +
                     "function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
@@ -557,7 +557,7 @@ public class MainActivity extends Activity {
                     "});" +
                     "}" +
                     "return found.slice(0,6).join('\\n\\n==========\\n\\n').slice(0,6000);" +
-                    "})()";
+                    "} catch(err) { return 'JS_ERROR: ' + err.message; }})()";
             webView.evaluateJavascript(inspectScript, result -> {
                 String text = result == null ? "" : result;
                 if (text.length() > 2) {
@@ -602,29 +602,31 @@ public class MainActivity extends Activity {
                 "var completedNodes=stageNodes.filter(function(e){return /complete|completed|done|success/i.test(stageFlag(e));});" +
                 "var stageNode=activeNodes.length?activeNodes[activeNodes.length-1]:(completedNodes.length?completedNodes[completedNodes.length-1]:null);" +
                 "var detectedStage=stageNode?(stageNode.innerText||stageNode.textContent||'').trim():'';" +
-                "var hs = Array.from(t.querySelectorAll('thead th')).map(txt);" +
-                "function idx(re, fallback) {for (var i=0;i<hs.length;i++) if(re.test(hs[i])) return i; return fallback;}" +
-                "function val(c, re, fallback) {var i=idx(re,fallback); return i<c.length ? txt(c[i]) : '';}" +
-                "return Array.from(t.querySelectorAll('tbody tr')).map(function(r) {" +
-                "var c=Array.from(r.querySelectorAll('td'));" +
-                "if(c.length<10) return null;" +
-                "var raw=(c[0].innerText || c[0].textContent || '').split(/\\n+/).map(function(x){return x.trim();});" +
-                "var nm=''; for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}" +
-                "if(!nm) nm=txt(c[0]); if(!nm) return null;" +
+                 "var hs=Array.from(t.querySelectorAll('thead th')).map(txt);" +
+                "function norm(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}" +
+                "function find(re){for(var i=0;i<hs.length;i++)if(re.test(norm(hs[i])))return i;return -1;}" +
+                "function val(c,re){var i=find(re);return i>=0&&i<c.length?txt(c[i]):'';}" +
+                "return Array.from(t.querySelectorAll('tbody tr')).map(function(r){" +
+                "var c=Array.from(r.querySelectorAll('td'));if(!c.length)return null;" +
+                "var columns={};for(var k=0;k<c.length;k++){var h=hs[k]||('column '+(k+1));columns[h]=txt(c[k]);}" +
+                "var raw=(c[0].innerText||c[0].textContent||'').split(/\\n+/).map(function(x){return x.trim();});" +
+                "var nm='';for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}" +
+                "if(!nm)nm=txt(c[0]);if(!nm)return null;" +
                 "return {name:nm," +
-                "state:val(c,/rider state/i,9)||'Unknown'," +
-                "session:val(c,/current session/i,1)," +
-                "performance:val(c,/performance/i,2)," +
-                "worked:val(c,/time worked/i,3)," +
-                "acceptance:val(c,/acceptance rate/i,4)," +
-                "wallet:val(c,/wallet balance/i,5)," +
-                "breaks:val(c,/^breaks$/i,6)," +
-                "breakTime:val(c,/breaks time/i,7)," +
-                "late:val(c,/late time/i,8)," +
-                "location:val(c,/location/i,10)," +
+                "state:val(c,/rider state/)||'Unknown'," +
+                "session:val(c,/current session/)," +
+                "performance:val(c,/performance/)," +
+                "worked:val(c,/time worked/)," +
+                "acceptance:val(c,/acceptance rate/)," +
+                "wallet:val(c,/wallet balance/)," +
+                "breaks:val(c,/^breaks$/)," +
+                "breakTime:val(c,/breaks time/)," +
+                "late:val(c,/late time/)," +
+                "location:val(c,/location/)," +
                 "orderId:(orderRider===nm?oid:'')," +
                 "orderStage:(orderRider===nm?detectedStage:'')," +
-                "orderDetails:(orderRider===nm?modalText:'')};" +
+                "orderDetails:(orderRider===nm?modalText:'')," +
+                "columns:columns};" +
                 "}).filter(function(x){return x!==null;});" +
                 "})()";
 
@@ -656,11 +658,12 @@ public class MainActivity extends Activity {
                     names.add(name);
                     states.add(row.optString("state", "Unknown"));
                     JSONObject detail = new JSONObject();
-                    String[] keys = {"session", "performance", "worked", "acceptance",
-                            "wallet", "breaks", "breakTime", "late", "location",
-                            "orderId", "orderStage", "orderDetails"};
-                    for (String key : keys) {
-                        detail.put(key, row.optString(key, ""));
+                    java.util.Iterator<String> rowKeys = row.keys();
+                    while (rowKeys.hasNext()) {
+                        String key = rowKeys.next();
+                        if (!"name".equals(key) && !"state".equals(key)) {
+                            detail.put(key, row.get(key));
+                        }
                     }
                     details.add(detail);
                 }
