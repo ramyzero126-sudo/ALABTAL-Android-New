@@ -589,122 +589,144 @@ public class MainActivity extends Activity {
     }
 
     private void syncRosterData(WebView webView, boolean notify) {
-        if (notify) {
-            String inspectScript =
-                    "(function(){try{" +
-                    "function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                    "function visible(e){var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
-                    "return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}" +
-                    "var sels=['[role=dialog]','[aria-modal=true]','dialog'," +
-                    "[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]];" +
-                    "var dialogs=[];var seen=[];" +
-                    "sels.forEach(function(sel){try{document.querySelectorAll(sel).forEach(function(e){" +
-                    "if(!visible(e)||seen.indexOf(e)>=0)return;seen.push(e);" +
-                    "var tx=clean(e.innerText||e.textContent);" +
-                    "if(tx)dialogs.push({tag:e.tagName,id:e.id||'',className:typeof e.className==='string'?e.className:'',text:tx.slice(0,1800)});" +
-                    "});}catch(x){}});" +
-                    "var body=clean(document.body?document.body.innerText:'');" +
-                    "var lines=(document.body?(document.body.innerText||''):'').split('\\n').map(clean).filter(function(x){" +
-                    "return /HF_[A-Z0-9]+|Accepted Order|Picked up|Near drop off|Delivered|restaurant|customer|order status/i.test(x);" +
-                    "});" +
-                    "return JSON.stringify({url:location.href,title:document.title,readyState:document.readyState," +
-                    "dialogCount:dialogs.length,dialogs:dialogs.slice(0,8),orderMatches:lines.slice(0,50),bodyPreview:body.slice(0,2500)});" +
-                    "}catch(e){return JSON.stringify({error:String(e),url:location.href});}})()";
-            webView.evaluateJavascript(inspectScript, result -> {
-                String rawResult = result == null ? "<Java null>" : result;
-                String text;
+        if (webView == null) return;
 
-                try {
-                    Object decoded = new org.json.JSONTokener(rawResult).nextValue();
-                    if (decoded instanceof String) {
-                        text = (String) decoded;
-                    } else if (decoded != null) {
-                        text = decoded.toString();
-                    } else {
-                        text = "نتيجة الفحص فارغة.\nالنتيجة الخام: " + rawResult;
-                    }
-                } catch (Exception e) {
-                    text = "تعذر تحليل نتيجة الفحص: " + e
-                            + "\nالنتيجة الخام: " + rawResult;
-                }
-
-                if (text == null || text.trim().isEmpty() || "null".equals(text.trim())) {
-                    text = "نتيجة الفحص فارغة أو null."
-                            + "\nالنتيجة الخام: " + rawResult;
-                }
-
-                final String inspectionText = text;
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle("فحص تفاصيل الأوردر")
-                        .setMessage(inspectionText)
-                        .setPositiveButton("نسخ", (dialog, which) -> {
-                            android.content.ClipboardManager cm =
-                                    (android.content.ClipboardManager)
-                                    getSystemService(CLIPBOARD_SERVICE);
-                            cm.setPrimaryClip(android.content.ClipData.newPlainText(
-                                    "RosterOrderInspect", inspectionText));
-                            Toast.makeText(this, "تم النسخ", Toast.LENGTH_SHORT).show();
-                        })
-                        .setNegativeButton("إغلاق", null)
-                        .show();
-            });
-            return;
-        }
         String script =
-                "(function() {" +
-                "var t = document.querySelector('table.cape-table');" +
-                "if (!t) return [];" +
-                "function txt(e) {return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ');}" +
-                "if(!window.__alabtalOrderTracker){window.__alabtalOrderTracker=true;document.addEventListener('click',function(ev){var tr=ev.target.closest('tr');if(!tr||!tr.closest('table.cape-table'))return;var first=tr.querySelector('td');if(!first)return;var raw=(first.innerText||first.textContent||'').split(/\\n+/).map(function(x){return x.trim();});var nm='';for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}if(!nm)nm=txt(first);if(nm)window.__alabtalLastOrderRider=nm;},true);}" +
-                "var modalText='';var modalRoot=null;var sels=['[role=dialog]','[aria-modal=true]','dialog','[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]'];sels.forEach(function(sel){try{document.querySelectorAll(sel).forEach(function(e){var r=e.getBoundingClientRect(),cs=getComputedStyle(e);if(r.width<=0||r.height<=0||cs.display==='none'||cs.visibility==='hidden')return;var z=txt(e);if(z.length>modalText.length&&/HF_[A-Z0-9]+/.test(z)){modalText=z;modalRoot=e;}});}catch(e){}});" +
-                "var oid=(modalText.match(/HF_[A-Z0-9]+/)||[''])[0];var orderRider=window.__alabtalLastOrderRider||'';" +
-                "var stageNames=['Accepted Order','Picked up','Near drop off','Delivered'];" +
-                "var stageNodes=modalRoot?Array.from(modalRoot.querySelectorAll('*')).filter(function(e){var tx=(e.innerText||e.textContent||'').trim().replace(/\\s+/g,' ');var r=e.getBoundingClientRect(),cs=getComputedStyle(e);return r.width>0&&r.height>0&&cs.display!=='none'&&cs.visibility!=='hidden'&&stageNames.indexOf(tx)>=0;}):[];" +
-                "function stageFlag(e){var out='';for(var n=e,i=0;n&&i<5&&modalRoot.contains(n);n=n.parentElement,i++){out+=' '+(typeof n.className==='string'?n.className:'')+' '+(n.getAttribute('aria-current')||'')+' '+(n.getAttribute('data-state')||'')+' '+(n.getAttribute('aria-checked')||'');}return out;}" +
-                "var activeNodes=stageNodes.filter(function(e){return /active|current|in-progress|selected/i.test(stageFlag(e));});" +
-                "var completedNodes=stageNodes.filter(function(e){return /complete|completed|done|success/i.test(stageFlag(e));});" +
-                "var stageNode=activeNodes.length?activeNodes[activeNodes.length-1]:(completedNodes.length?completedNodes[completedNodes.length-1]:null);" +
-                "var detectedStage=stageNode?(stageNode.innerText||stageNode.textContent||'').trim():'';" +
-                 "var hs=Array.from(t.querySelectorAll('thead th')).map(txt);" +
-                "function norm(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}" +
-                "function find(re){for(var i=0;i<hs.length;i++)if(re.test(norm(hs[i])))return i;return -1;}" +
-                "function val(c,re){var i=find(re);return i>=0&&i<c.length?txt(c[i]):'';}" +
-                "return Array.from(t.querySelectorAll('tbody tr')).map(function(r){" +
-                "var c=Array.from(r.querySelectorAll('td'));if(!c.length)return null;" +
-                "var columns={};for(var k=0;k<c.length;k++){var h=hs[k]||('column '+(k+1));columns[h]=txt(c[k]);}" +
-                "var raw=(c[0].innerText||c[0].textContent||'').split(/\\n+/).map(function(x){return x.trim();});" +
-                "var nm='';for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}" +
-                "if(!nm)nm=txt(c[0]);if(!nm)return null;" +
-                "return {name:nm," +
-                "state:val(c,/rider state/)||'Unknown'," +
-                "session:val(c,/current session/)," +
-                "performance:val(c,/performance/)," +
-                "worked:val(c,/time worked/)," +
-                "acceptance:val(c,/acceptance rate/)," +
-                "wallet:val(c,/wallet balance/)," +
-                "breaks:val(c,/^breaks$/)," +
-                "breakTime:val(c,/breaks time/)," +
-                "late:val(c,/late time/)," +
-                "location:val(c,/location/)," +
-                "orderId:(orderRider===nm?oid:'')," +
-                "orderStage:(orderRider===nm?detectedStage:'')," +
-                "orderDetails:(orderRider===nm?modalText:'')," +
-                "columns:columns};" +
-                "}).filter(function(x){return x!==null;});" +
-                "})()";
+                "window.__alabtalRosterResult=null;(async function() {" +
+                "try {" +
+                "if (!location.hostname.endsWith('logisticsbackoffice.com'))" +
+                " return JSON.stringify({ok:false,error:'wrong_page'});" +
+                "var all=[]; var page=0; var size=100; var maxPages=50;" +
+                "function listOf(j) {" +
+                "if(Array.isArray(j))return j;" +
+                "if(!j||typeof j!=='object')return null;" +
+                "var paths=[j.riders,j.items,j.content,j.results,j.data," +
+                "j.data&&j.data.riders,j.data&&j.data.items," +
+                "j.data&&j.data.content,j.data&&j.data.results," +
+                "j.result&&j.result.riders,j.result&&j.result.items];" +
+                "for(var i=0;i<paths.length;i++)if(Array.isArray(paths[i]))return paths[i];" +
+                "return null;" +
+                "}" +
+                "function val(o, paths) {" +
+                "for(var i=0;i<paths.length;i++) {" +
+                "var v=o; var parts=paths[i].split('.');" +
+                "for(var k=0;k<parts.length&&v!=null;k++)v=v[parts[k]];" +
+                "if(v!==undefined&&v!==null&&v!=='')return v;" +
+                "} return '';" +
+                "}" +
+                "function text(v) {" +
+                "if(v===null||v===undefined)return '';" +
+                "if(typeof v==='object')return JSON.stringify(v);" +
+                "return String(v);" +
+                "}" +
+                "function percent(v) {" +
+                "if(v===''||v===null||v===undefined)return '';" +
+                "var n=Number(v); return isFinite(n)?(n<=1&&n>=0?" +
+                "(n*100).toFixed(1):n.toFixed(1))+'%':text(v);" +
+                "}" +
+                "function duration(v) {" +
+                "var n=Number(v); if(!isFinite(n)||n<0)return text(v);" +
+                "n=Math.floor(n); var h=Math.floor(n/3600);" +
+                "var m=Math.floor((n%3600)/60);" +
+                "return h+'h '+m+'m';" +
+                "}" +
+                "for(;page<maxPages;page++) {" +
+                "var url='/api/rider-live-operations/v1/external/city/214/riders?page='+page+'&size='+size;" +
+                "var res=await fetch(url,{method:'GET',credentials:'include'," +
+                "headers:{'Accept':'application/json'}});" +
+                "if(!res.ok)return JSON.stringify({ok:false,status:res.status,page:page});" +
+                "var j=await res.json(); var rows=listOf(j);" +
+                "if(!rows)return JSON.stringify({ok:false,error:'unexpected_response',page:page});" +
+                "if(rows.length===0)break;" +
+                "all=all.concat(rows);" +
+                "var totalPages=val(j,['total_pages','totalPages','data.total_pages','data.totalPages']);" +
+                "if(totalPages!==''&&page+1>=Number(totalPages))break;" +
+                "if(rows.length<size)break;" +
+                "}" +
+                "var mapped=[];" +
+                "for(var i=0;i<all.length;i++) {" +
+                "var r=all[i]||{};" +
+                "var name=text(val(r,['name','full_name','employee_name'])).trim();" +
+                "if(!name)continue;" +
+                "var status=text(val(r,['status','rider_status']));" +
+                "var bal=val(r,['wallet_info.balance','wallet.balance','wallet_balance']);" +
+                "var perf=val(r,['performance.utilization_rate','utilization_rate','performance']);" +
+                "if(perf&&typeof perf==='object')perf=val(perf,['utilization_rate','rate','value']);" +
+                "var acc=val(r,['acceptance_rate','performance.acceptance_rate']);" +
+                "var worked=val(r,['time_spent.worked_seconds','worked_seconds','worked_time']);" +
+                "var late=val(r,['time_spent.late_seconds','late_seconds']);" +
+                "var breaks=val(r,['time_spent.break_seconds','break_seconds']);" +
+                "var loc=val(r,['current_location']);" +
+                "var lat=val(r,['current_location.latitude','latitude']);" +
+                "var lon=val(r,['current_location.longitude','longitude']);" +
+                "var shift=text(val(r,['current_session','session','shift.name','shift_info.name']));" +
+                "if(!shift) {" +
+                "var ss=val(r,['shift_start','shift.start_time','shift_info.start_time']);" +
+                "var se=val(r,['shift_end','shift.end_time','shift_info.end_time']);" +
+                "if(ss||se)shift=text(ss)+(se?' - '+text(se):'');" +
+                "}" +
+                "var d={employeeId:text(val(r,['employee_id','id']))," +
+                "zone:text(val(r,['zone.name','zone','starting_point.name']))," +
+                "startingPoint:text(val(r,['starting_point.name','starting_point_name']))," +
+                "session:shift,wallet:text(bal),performance:percent(perf)," +
+                "acceptance:percent(acc),worked:duration(worked)," +
+                "late:duration(late),breakTime:duration(breaks)," +
+                "location:(lat!==''&&lon!==''?text(lat)+', '+text(lon):text(loc))," +
+                "latitude:text(lat),longitude:text(lon)," +
+                "hasActiveDeliveries:Number(val(r,['deliveries_info.active_deliveries_count'," +
+                "'active_deliveries_count']))>0};" +
+                "mapped.push({name:name,state:status||'Unknown',detail:d});" +
+                "}" +
+                "return JSON.stringify({ok:true,riders:mapped,count:mapped.length,pages:page+1});" +
+                "} catch(e) {return JSON.stringify({ok:false,error:String(e)});}" +
+                "})().then(function(v){window.__alabtalRosterResult=v;},function(e){window.__alabtalRosterResult=JSON.stringify({ok:false,error:String(e)});});" +
+                "'started'";
 
-        webView.evaluateJavascript(script, result -> {
+        webView.evaluateJavascript(script, ignored ->
+                pollRosterApiResult(webView, notify, 0));
+    }
+
+    private void pollRosterApiResult(WebView webView, boolean notify, int attempt) {
+        webView.evaluateJavascript("window.__alabtalRosterResult || null", result -> {
+            if (result == null || "null".equals(result)) {
+                if (attempt < 59) {
+                    webView.postDelayed(() -> pollRosterApiResult(webView, notify, attempt + 1), 500);
+                } else if (notify) {
+                    Toast.makeText(this, "API timed out waiting for response.", Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
             try {
-                JSONArray rows = new JSONArray(result == null ? "[]" : result);
-                if (rows.length() == 0) {
-                    if (!notify && rosterSyncAttempts < 10) {
-                        rosterSyncAttempts++;
-                        webView.postDelayed(() -> syncRosterData(webView, false), 1500);
-                        return;
+                Object value = new org.json.JSONTokener(result).nextValue();
+                if (!(value instanceof String)) return;
+                handleRosterApiResult((String) value, notify);
+            } catch (Exception e) {
+                if (notify) Toast.makeText(this,
+                        "Could not decode API result.",
+                        Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void handleRosterApiResult(String result, boolean notify) {
+            try {
+                JSONObject response = new JSONObject(result);
+                if (!response.optBoolean("ok", false)) {
+                    if (notify) {
+                        int status = response.optInt("status", 0);
+                        String error = response.optString("error", "");
+                        String message = status > 0
+                                ? "Logistics API HTTP " + status
+                                : "Logistics API error: " + error;
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                     }
-                    rosterSyncAttempts = 0;
+                    return;
+                }
+
+                JSONArray riders = response.optJSONArray("riders");
+                if (riders == null || riders.length() == 0) {
                     if (notify) Toast.makeText(this,
-                            "No roster rows found. Wait for the table, then tap Sync.",
+                            "API connected, but no rider records were found.",
                             Toast.LENGTH_LONG).show();
                     return;
                 }
@@ -713,36 +735,28 @@ public class MainActivity extends Activity {
                 ArrayList<String> states = new ArrayList<>();
                 ArrayList<JSONObject> details = new ArrayList<>();
 
-                for (int i = 0; i < rows.length(); i++) {
-                    JSONObject row = rows.getJSONObject(i);
-                    String name = row.optString("name", "").trim();
+                for (int i = 0; i < riders.length(); i++) {
+                    JSONObject item = riders.optJSONObject(i);
+                    if (item == null) continue;
+                    String name = item.optString("name", "").trim();
                     if (name.isEmpty()) continue;
-
                     names.add(name);
-                    states.add(row.optString("state", "Unknown"));
-                    JSONObject detail = new JSONObject();
-                    java.util.Iterator<String> rowKeys = row.keys();
-                    while (rowKeys.hasNext()) {
-                        String key = rowKeys.next();
-                        if (!"name".equals(key) && !"state".equals(key)) {
-                            detail.put(key, row.get(key));
-                        }
-                    }
-                    details.add(detail);
+                    states.add(item.optString("state", "Unknown"));
+                    JSONObject detail = item.optJSONObject("detail");
+                    details.add(detail == null ? new JSONObject() : detail);
                 }
 
                 if (names.isEmpty()) {
-                    if (notify) Toast.makeText(this, "No rider names found in the table.",
+                    if (notify) Toast.makeText(this,
+                            "API response contained no usable rider names.",
                             Toast.LENGTH_LONG).show();
                     return;
                 }
 
-                boolean rosterDataChanged =
-                        !liveRiderNames.equals(names)
+                boolean changed = !liveRiderNames.equals(names)
                         || !liveRiderStates.equals(states)
                         || !liveRiderDetails.toString().equals(details.toString());
 
-                rosterSyncAttempts = 0;
                 liveRiderNames.clear();
                 liveRiderNames.addAll(names);
                 liveRiderStates.clear();
@@ -768,21 +782,20 @@ public class MainActivity extends Activity {
                         .putString("last_sync", lastRosterSyncLabel)
                         .apply();
 
+                rosterSyncAttempts = 0;
                 if (notify) Toast.makeText(this,
-                        "Updated " + names.size() + " riders. Last sync: "
-                                + lastRosterSyncLabel + ". Tap Back to view dashboard.",
+                        "API synced " + names.size() + " riders. Last sync: "
+                                + lastRosterSyncLabel,
                         Toast.LENGTH_LONG).show();
 
-                if (dashboardVisible && !currentUsername.isEmpty()
-                        && rosterDataChanged) {
+                if (dashboardVisible && !currentUsername.isEmpty() && changed) {
                     showDashboard(currentUsername);
                 }
             } catch (Exception e) {
-                if (notify) Toast.makeText(this, "Could not read roster table.",
+                if (notify) Toast.makeText(this,
+                        "Could not parse Logistics API response.",
                         Toast.LENGTH_LONG).show();
             }
-        });
     }
-
 
 }
