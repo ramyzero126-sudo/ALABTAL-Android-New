@@ -45,10 +45,10 @@ public class MainActivity extends Activity {
     private int rosterRefreshTicks = 0;
 
 
-    private final int navy = Color.rgb(10, 22, 40);
-    private final int green = Color.rgb(16, 185, 129);
-    private final int background = Color.rgb(7, 15, 29);
-    private final int textColor = Color.rgb(240, 246, 252);
+    private final int navy = Color.rgb(18, 18, 18);
+    private final int green = Color.rgb(255, 121, 0);
+    private final int background = Color.rgb(8, 8, 8);
+    private final int textColor = Color.rgb(240, 240, 240);
 
     private int dp(float value) {
         return (int) (value *
@@ -235,48 +235,65 @@ public class MainActivity extends Activity {
 
         private void addRiderCard(LinearLayout list, String rider,
                               String status, JSONObject detail) {
-        int muted = Color.rgb(160, 178, 199);
+        final int orange = Color.rgb(255, 121, 0);
+        final int panel = Color.rgb(25, 25, 25);
+        final int muted = Color.rgb(175, 175, 175);
+        final int white = Color.rgb(245, 245, 245);
+
         String state = status == null || status.trim().isEmpty()
                 ? "Unknown" : status.trim();
         String normalized = state.toLowerCase(java.util.Locale.ROOT);
-        int badgeText = Color.rgb(252, 196, 91);
-        int badgeBackground = Color.rgb(76, 61, 35);
+
+        int badgeText = Color.rgb(255, 190, 90);
+        int badgeBackground = Color.rgb(72, 48, 22);
 
         if (normalized.contains("offline") || normalized.contains("inactive")
                 || normalized.contains("not active")) {
-            badgeText = Color.rgb(252, 129, 129);
-            badgeBackground = Color.rgb(76, 39, 52);
+            badgeText = Color.rgb(255, 125, 125);
+            badgeBackground = Color.rgb(72, 30, 30);
         } else if (normalized.contains("active") || normalized.contains("online")
-                || normalized.contains("available")) {
-            badgeText = Color.rgb(52, 211, 153);
-            badgeBackground = Color.rgb(20, 69, 65);
+                || normalized.contains("available") || normalized.equals("working")) {
+            badgeText = Color.rgb(100, 220, 155);
+            badgeBackground = Color.rgb(24, 62, 43);
         }
 
         if (detail == null) detail = new JSONObject();
 
         LinearLayout card = column();
-        card.setPadding(dp(9), dp(8), dp(9), dp(8));
-        android.graphics.drawable.GradientDrawable cardBackground =
+        card.setPadding(dp(14), dp(14), dp(14), dp(14));
+
+        android.graphics.drawable.GradientDrawable cardBg =
                 new android.graphics.drawable.GradientDrawable();
-        cardBackground.setColor(Color.rgb(16, 16, 16));
-        cardBackground.setCornerRadius(dp(12));
-        cardBackground.setStroke(dp(1), Color.rgb(249, 115, 22));
-        card.setBackground(cardBackground);
+        cardBg.setColor(Color.rgb(15, 15, 15));
+        cardBg.setCornerRadius(dp(18));
+        cardBg.setStroke(dp(1), orange);
+        card.setBackground(cardBg);
 
         LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = makeText(rider, 13, Color.WHITE);
+
+        TextView name = makeText(
+                rider == null || rider.trim().isEmpty() ? "مندوب بدون اسم" : rider,
+                17, white);
         name.setTypeface(null, Typeface.BOLD);
+        name.setMaxLines(3);
         top.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        TextView badge = makeText(state, 10, badgeText);
+        TextView badge = makeText(state, 11, badgeText);
         badge.setTypeface(null, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(7), dp(3), dp(7), dp(3));
-        badge.setBackground(shape(badgeBackground, 9));
+        badge.setPadding(dp(10), dp(6), dp(10), dp(6));
+        badge.setBackground(shape(badgeBackground, 12));
         top.addView(badge, params(-2, -2));
         card.addView(top, params(-1, -2));
+
+        TextView section = makeText("بيانات الشيفت والمندوب", 12, orange);
+        section.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams sectionParams = params(-1, -2);
+        sectionParams.topMargin = dp(16);
+        card.addView(section, sectionParams);
 
         String session = detail.optString("session", "");
         String wallet = detail.optString("wallet", "");
@@ -286,43 +303,106 @@ public class MainActivity extends Activity {
         String plannedStart = detail.optString("plannedShiftStart", "");
         String plannedEnd = detail.optString("plannedShiftEnd", "");
 
-        String line1 = "الشيفت الحالي: " + (session.isEmpty() ? "—" : session)
-                + "   •   المحفظة: " + (wallet.isEmpty() ? "—" : wallet);
-        String line2 = "التوصيلات/الأداء: "
-                + (performance.isEmpty() ? "—" : performance)
-                + "   •   القبول: " + (acceptance.isEmpty() ? "—" : acceptance);
-        String line3 = "وقت العمل: " + (worked.isEmpty() ? "—" : worked);
+        LinearLayout shiftPanel = column();
+        shiftPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
+        shiftPanel.setBackground(shape(panel, 12));
 
-        String plannedLine = plannedStart.isEmpty() || plannedEnd.isEmpty()
-                ? "" : "\nالشيفت المخطط: " + plannedStart.replace('T', ' ')
-                + " - " + plannedEnd.replace('T', ' ');
+        TextView currentShift = makeText(
+                "الشيفت الحالي\n" + (session.isEmpty() ? "غير متاح" : session),
+                14, white);
+        currentShift.setMaxLines(4);
+        currentShift.setTypeface(null, Typeface.BOLD);
+        shiftPanel.addView(currentShift, params(-1, -2));
 
-        TextView metrics = makeText(line1 + "\n" + line2 + "\n" + line3
-                + plannedLine, 10, muted);
-        metrics.setMaxLines(4);
-        LinearLayout.LayoutParams metricParams = params(-1, -2);
-        metricParams.topMargin = dp(5);
-        card.addView(metrics, metricParams);
+        TextView walletView = makeText(
+                "المحفظة\n" + (wallet.isEmpty() ? "غير متاحة" : wallet),
+                14, white);
+        walletView.setMaxLines(3);
+        LinearLayout.LayoutParams walletParams = params(-1, -2);
+        walletParams.topMargin = dp(10);
+        shiftPanel.addView(walletView, walletParams);
 
-        String orderId = detail.optString("orderId", "").trim();
-        String orderStage = detail.optString("orderStage", "").trim();
-        String orderDetails = detail.optString("orderDetails", "").trim();
-        if (!orderId.isEmpty() || !orderStage.isEmpty() || !orderDetails.isEmpty()) {
-            TextView orderView = makeText(
-                    "الأوردر: " + (orderId.isEmpty() ? "—" : orderId)
-                    + "\nالمرحلة: " + (orderStage.isEmpty() ? "غير متاحة" : orderStage)
-                    + (orderDetails.isEmpty() ? "" : "\n" + orderDetails),
-                    10, Color.rgb(249, 115, 22));
-            orderView.setMaxLines(4);
-            orderView.setPadding(dp(8), dp(6), dp(8), dp(6));
-            orderView.setBackground(shape(Color.rgb(29, 29, 29), 8));
-            LinearLayout.LayoutParams orderParams = params(-1, -2);
-            orderParams.topMargin = dp(5);
-            card.addView(orderView, orderParams);
+        LinearLayout.LayoutParams shiftParams = params(-1, -2);
+        shiftParams.topMargin = dp(8);
+        card.addView(shiftPanel, shiftParams);
+
+        TextView performanceTitle = makeText("الأداء وساعات العمل", 12, orange);
+        performanceTitle.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams performanceTitleParams = params(-1, -2);
+        performanceTitleParams.topMargin = dp(14);
+        card.addView(performanceTitle, performanceTitleParams);
+
+        LinearLayout statsPanel = column();
+        statsPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
+        statsPanel.setBackground(shape(panel, 12));
+
+        TextView performanceView = makeText(
+                "التوصيلات / الأداء\n"
+                + (performance.isEmpty() ? "غير متاح" : performance),
+                14, white);
+        performanceView.setMaxLines(4);
+        statsPanel.addView(performanceView, params(-1, -2));
+
+        TextView acceptanceView = makeText(
+                "نسبة القبول\n"
+                + (acceptance.isEmpty() ? "غير متاحة" : acceptance),
+                14, white);
+        acceptanceView.setMaxLines(3);
+        LinearLayout.LayoutParams acceptanceParams = params(-1, -2);
+        acceptanceParams.topMargin = dp(12);
+        statsPanel.addView(acceptanceView, acceptanceParams);
+
+        TextView workedView = makeText(
+                "وقت العمل\n" + (worked.isEmpty() ? "غير متاح" : worked),
+                14, white);
+        workedView.setMaxLines(3);
+        LinearLayout.LayoutParams workedParams = params(-1, -2);
+        workedParams.topMargin = dp(12);
+        statsPanel.addView(workedView, workedParams);
+
+        if (!plannedStart.isEmpty() || !plannedEnd.isEmpty()) {
+            TextView plannedView = makeText(
+                    "الشيفت المخطط\n"
+                    + (plannedStart.isEmpty() ? "—" : plannedStart.replace('T', ' '))
+                    + "\nإلى\n"
+                    + (plannedEnd.isEmpty() ? "—" : plannedEnd.replace('T', ' ')),
+                    13, Color.rgb(255, 175, 95));
+            plannedView.setMaxLines(5);
+            LinearLayout.LayoutParams plannedParams = params(-1, -2);
+            plannedParams.topMargin = dp(12);
+            statsPanel.addView(plannedView, plannedParams);
         }
 
+        LinearLayout.LayoutParams statsParams = params(-1, -2);
+        statsParams.topMargin = dp(8);
+        card.addView(statsPanel, statsParams);
+
+        String orderLocation = detail.optString("orderLocation", "").trim();
+
+        TextView orderTitle = makeText("مكان الأوردر", 12, orange);
+        orderTitle.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams orderTitleParams = params(-1, -2);
+        orderTitleParams.topMargin = dp(14);
+        card.addView(orderTitle, orderTitleParams);
+
+        LinearLayout orderPanel = column();
+        orderPanel.setPadding(dp(12), dp(10), dp(12), dp(10));
+        orderPanel.setBackground(shape(Color.rgb(30, 23, 17), 12));
+
+        TextView orderView = makeText(
+                orderLocation.isEmpty()
+                        ? "جاري تحديد مكان الأوردر"
+                        : orderLocation,
+                14, white);
+        orderView.setMaxLines(5);
+        orderPanel.addView(orderView, params(-1, -2));
+
+        LinearLayout.LayoutParams orderPanelParams = params(-1, -2);
+        orderPanelParams.topMargin = dp(8);
+        card.addView(orderPanel, orderPanelParams);
+
         LinearLayout.LayoutParams cardParams = params(-1, -2);
-        cardParams.bottomMargin = dp(8);
+        cardParams.bottomMargin = dp(12);
         list.addView(card, cardParams);
     }
 
@@ -336,9 +416,65 @@ public class MainActivity extends Activity {
         header.setPadding(dp(20), dp(22), dp(20), dp(20));
         header.setBackground(shape(navy, 0));
 
-        TextView brand = makeText("ALABTAL  •  OPERATIONS", 12, green);
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setOrientation(LinearLayout.HORIZONTAL);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView brand = makeText("ALABTAL", 21, green);
         brand.setTypeface(null, Typeface.BOLD);
-        header.addView(brand, params(-1, -2));
+        toolbar.addView(brand, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        Button globeButton = new Button(this);
+        globeButton.setText("🌐");
+        globeButton.setTextSize(19);
+        globeButton.setAllCaps(false);
+        globeButton.setMinWidth(0);
+        globeButton.setMinimumWidth(0);
+        globeButton.setPadding(dp(8), 0, dp(8), 0);
+        globeButton.setTextColor(green);
+        globeButton.setBackground(shape(Color.rgb(30, 30, 30), 10));
+        toolbar.addView(globeButton, params(46, 44));
+        globeButton.setOnClickListener(v -> showRosterPage(username));
+
+        Button bellButton = new Button(this);
+        bellButton.setText("🔔");
+        bellButton.setTextSize(17);
+        bellButton.setAllCaps(false);
+        bellButton.setMinWidth(0);
+        bellButton.setMinimumWidth(0);
+        bellButton.setPadding(dp(5), 0, dp(5), 0);
+        bellButton.setTextColor(green);
+        bellButton.setBackground(shape(Color.rgb(30, 30, 30), 10));
+        LinearLayout.LayoutParams bellParams = params(46, 44);
+        bellParams.leftMargin = dp(7);
+        toolbar.addView(bellButton, bellParams);
+        bellButton.setOnClickListener(v ->
+                Toast.makeText(this,
+                        "الإشعارات غير مربوطة بمصدر حقيقي حتى الآن",
+                        Toast.LENGTH_SHORT).show());
+
+        Button topLogout = new Button(this);
+        topLogout.setText("خروج");
+        topLogout.setTextSize(12);
+        topLogout.setTypeface(null, Typeface.BOLD);
+        topLogout.setAllCaps(false);
+        topLogout.setMinWidth(0);
+        topLogout.setMinimumWidth(0);
+        topLogout.setPadding(dp(8), 0, dp(8), 0);
+        topLogout.setTextColor(Color.WHITE);
+        topLogout.setBackground(shape(green, 10));
+        LinearLayout.LayoutParams topLogoutParams = params(-2, 44);
+        topLogoutParams.leftMargin = dp(7);
+        toolbar.addView(topLogout, topLogoutParams);
+        topLogout.setOnClickListener(v -> {
+            stopRosterAutoSync();
+            dashboardVisible = false;
+            auth.signOut();
+            showLogin();
+        });
+
+        header.addView(toolbar, params(-1, 48));
 
         TextView title = makeText("لوحة متابعة الشيفت", 24, Color.WHITE);
         title.setTypeface(null, Typeface.BOLD);
@@ -393,7 +529,10 @@ public class MainActivity extends Activity {
         if (liveRiderNames.isEmpty()) {
             LinearLayout emptyCard = column();
             emptyCard.setPadding(dp(16), dp(18), dp(16), dp(18));
-            emptyCard.setBackground(shape(Color.rgb(18, 33, 54), 16));
+            emptyCard.setBackground(shape(Color.rgb(22, 22, 22), 16));
+            android.graphics.drawable.GradientDrawable emptyBg =
+                    (android.graphics.drawable.GradientDrawable) emptyCard.getBackground();
+            emptyBg.setStroke(dp(1), green);
 
             TextView emptyTitle = makeText("لا توجد بيانات للمناديب بعد",
                     15, Color.WHITE);
@@ -413,12 +552,12 @@ public class MainActivity extends Activity {
             countCard.setOrientation(LinearLayout.HORIZONTAL);
             countCard.setGravity(Gravity.CENTER_VERTICAL);
             countCard.setPadding(dp(14), dp(13), dp(14), dp(13));
-            countCard.setBackground(shape(Color.rgb(18, 46, 57), 14));
+            countCard.setBackground(shape(Color.rgb(24, 24, 24), 14));
 
             LinearLayout countInfo = column();
             TextView countLabel = makeText(
                     "إجمالي المناديب  •  TOTAL RIDERS",
-                    11, Color.rgb(160, 210, 202));
+                    11, Color.rgb(255, 160, 70));
             countInfo.addView(countLabel, params(-1, -2));
 
             TextView count = makeText(
