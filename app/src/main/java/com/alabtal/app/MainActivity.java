@@ -251,7 +251,12 @@ public class MainActivity extends Activity {
 
         LinearLayout card = column();
         card.setPadding(dp(9), dp(8), dp(9), dp(8));
-        card.setBackground(shape(Color.rgb(16, 16, 16), 12));
+        android.graphics.drawable.GradientDrawable cardBackground =
+                new android.graphics.drawable.GradientDrawable();
+        cardBackground.setColor(Color.rgb(16, 16, 16));
+        cardBackground.setCornerRadius(dp(12));
+        cardBackground.setStroke(dp(1), Color.rgb(249, 115, 22));
+        card.setBackground(cardBackground);
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -294,8 +299,8 @@ public class MainActivity extends Activity {
         if (!orderId.isEmpty() || !orderStage.isEmpty() || !orderDetails.isEmpty()) {
             TextView orderView = makeText(
                     "الأوردر: " + (orderId.isEmpty() ? "—" : orderId)
-                    + "\\nالمرحلة: " + (orderStage.isEmpty() ? "غير متاحة" : orderStage)
-                    + (orderDetails.isEmpty() ? "" : "\\n" + orderDetails),
+                    + "\nالمرحلة: " + (orderStage.isEmpty() ? "غير متاحة" : orderStage)
+                    + (orderDetails.isEmpty() ? "" : "\n" + orderDetails),
                     10, Color.rgb(249, 115, 22));
             orderView.setMaxLines(4);
             orderView.setPadding(dp(8), dp(6), dp(8), dp(6));
@@ -580,12 +585,23 @@ public class MainActivity extends Activity {
                             Toast.LENGTH_LONG).show();
                 }
             });
+            return;
         }
         String script =
                 "(function() {" +
                 "var t = document.querySelector('table.cape-table');" +
                 "if (!t) return [];" +
                 "function txt(e) {return (e.innerText || e.textContent || '').trim().replace(/\\s+/g,' ');}" +
+                "if(!window.__alabtalOrderTracker){window.__alabtalOrderTracker=true;document.addEventListener('click',function(ev){var tr=ev.target.closest('tr');if(!tr||!tr.closest('table.cape-table'))return;var first=tr.querySelector('td');if(!first)return;var raw=(first.innerText||first.textContent||'').split(/\\n+/).map(function(x){return x.trim();});var nm='';for(var j=0;j<raw.length;j++){if(/^Name\\s*:/i.test(raw[j])){nm=raw[j].replace(/^Name\\s*:\\s*/i,'');break;}}if(!nm)nm=txt(first);if(nm)window.__alabtalLastOrderRider=nm;},true);}" +
+                "var modalText='';var modalRoot=null;var sels=['[role=dialog]','[aria-modal=true]','dialog','[class*=modal],[class*=Modal],[class*=dialog],[class*=Dialog]'];sels.forEach(function(sel){try{document.querySelectorAll(sel).forEach(function(e){var r=e.getBoundingClientRect(),cs=getComputedStyle(e);if(r.width<=0||r.height<=0||cs.display==='none'||cs.visibility==='hidden')return;var z=txt(e);if(z.length>modalText.length&&/HF_[A-Z0-9]+/.test(z)){modalText=z;modalRoot=e;}});}catch(e){}});" +
+                "var oid=(modalText.match(/HF_[A-Z0-9]+/)||[''])[0];var orderRider=window.__alabtalLastOrderRider||'';" +
+                "var stageNames=['Accepted Order','Picked up','Near drop off','Delivered'];" +
+                "var stageNodes=modalRoot?Array.from(modalRoot.querySelectorAll('*')).filter(function(e){var tx=(e.innerText||e.textContent||'').trim().replace(/\\s+/g,' ');var r=e.getBoundingClientRect(),cs=getComputedStyle(e);return r.width>0&&r.height>0&&cs.display!=='none'&&cs.visibility!=='hidden'&&stageNames.indexOf(tx)>=0;}):[];" +
+                "function stageFlag(e){var out='';for(var n=e,i=0;n&&i<5&&modalRoot.contains(n);n=n.parentElement,i++){out+=' '+(typeof n.className==='string'?n.className:'')+' '+(n.getAttribute('aria-current')||'')+' '+(n.getAttribute('data-state')||'')+' '+(n.getAttribute('aria-checked')||'');}return out;}" +
+                "var activeNodes=stageNodes.filter(function(e){return /active|current|in-progress|selected/i.test(stageFlag(e));});" +
+                "var completedNodes=stageNodes.filter(function(e){return /complete|completed|done|success/i.test(stageFlag(e));});" +
+                "var stageNode=activeNodes.length?activeNodes[activeNodes.length-1]:(completedNodes.length?completedNodes[completedNodes.length-1]:null);" +
+                "var detectedStage=stageNode?(stageNode.innerText||stageNode.textContent||'').trim():'';" +
                 "var hs = Array.from(t.querySelectorAll('thead th')).map(txt);" +
                 "function idx(re, fallback) {for (var i=0;i<hs.length;i++) if(re.test(hs[i])) return i; return fallback;}" +
                 "function val(c, re, fallback) {var i=idx(re,fallback); return i<c.length ? txt(c[i]) : '';}" +
@@ -605,7 +621,10 @@ public class MainActivity extends Activity {
                 "breaks:val(c,/^breaks$/i,6)," +
                 "breakTime:val(c,/breaks time/i,7)," +
                 "late:val(c,/late time/i,8)," +
-                "location:val(c,/location/i,10)};" +
+                "location:val(c,/location/i,10)," +
+                "orderId:(orderRider===nm?oid:'')," +
+                "orderStage:(orderRider===nm?detectedStage:'')," +
+                "orderDetails:(orderRider===nm?modalText:'')};" +
                 "}).filter(function(x){return x!==null;});" +
                 "})()";
 
@@ -638,7 +657,8 @@ public class MainActivity extends Activity {
                     states.add(row.optString("state", "Unknown"));
                     JSONObject detail = new JSONObject();
                     String[] keys = {"session", "performance", "worked", "acceptance",
-                            "wallet", "breaks", "breakTime", "late", "location"};
+                            "wallet", "breaks", "breakTime", "late", "location",
+                            "orderId", "orderStage", "orderDetails"};
                     for (String key : keys) {
                         detail.put(key, row.optString(key, ""));
                     }
