@@ -36,6 +36,8 @@ public class MainActivity extends Activity {
     private final Handler rosterHandler = new Handler(Looper.getMainLooper());
     private Runnable rosterAutoSync;
     private String lastRosterSyncLabel = "لم تتم المزامنة";
+    private String rosterSyncStatus = "لم تتم المزامنة";
+    private boolean rosterSyncSuccessful = false;
     private WebView rosterWebView;
     private boolean rosterPageLoaded = false;
     private boolean dashboardVisible = false;
@@ -123,7 +125,7 @@ public class MainActivity extends Activity {
         root.setPadding(dp(26), dp(24), dp(26), dp(24));
         root.setBackgroundColor(background);
 
-        TextView logo = makeText("ALABTAL", 30, navy);
+        TextView logo = makeText("ALABTAL", 30, green);
         logo.setTypeface(null, Typeface.BOLD);
         logo.setGravity(Gravity.CENTER);
         root.addView(logo, params(-1, 48));
@@ -135,14 +137,14 @@ public class MainActivity extends Activity {
 
         LinearLayout card = column();
         card.setPadding(dp(20), dp(22), dp(20), dp(22));
-        card.setBackground(shape(Color.WHITE, 18));
+        card.setBackground(shape(Color.rgb(22, 22, 22), 18));
         card.setElevation(dp(3));
 
         LinearLayout.LayoutParams cardParams = params(-1, -2);
         cardParams.topMargin = dp(28);
         root.addView(card, cardParams);
 
-        TextView heading = makeText("Welcome back", 23, navy);
+        TextView heading = makeText("Welcome back", 23, Color.WHITE);
         heading.setTypeface(null, Typeface.BOLD);
         card.addView(heading, params(-1, -2));
 
@@ -164,6 +166,8 @@ public class MainActivity extends Activity {
         username.setSingleLine(true);
         username.setTextSize(15);
         username.setHint("Enter your email");
+        username.setTextColor(Color.WHITE);
+        username.setHintTextColor(Color.GRAY);
         username.setPadding(dp(12), 0, dp(12), 0);
         username.setBackground(shape(background, 10));
         card.addView(username, params(-1, 50));
@@ -178,6 +182,8 @@ public class MainActivity extends Activity {
         password.setSingleLine(true);
         password.setTextSize(15);
         password.setHint("Enter your password");
+        password.setTextColor(Color.WHITE);
+        password.setHintTextColor(Color.GRAY);
         password.setInputType(
                 android.text.InputType.TYPE_CLASS_TEXT |
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -233,7 +239,17 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
-        private void addRiderCard(LinearLayout list, String rider,
+        private String formatShiftTime(String value) {
+        if (value == null || value.trim().isEmpty()) return "—";
+        String v = value.trim();
+        int t = v.indexOf("T");
+        if (t >= 0 && v.length() >= t + 6) return v.substring(t + 1, t + 6);
+        int space = v.lastIndexOf(" ");
+        if (space >= 0 && v.length() >= space + 6) return v.substring(space + 1, space + 6);
+        return v;
+    }
+
+    private void addRiderCard(LinearLayout list, String rider,
                               String status, JSONObject detail) {
         final int orange = Color.rgb(255, 121, 0);
         final int panel = Color.rgb(25, 25, 25);
@@ -363,9 +379,9 @@ public class MainActivity extends Activity {
         if (!plannedStart.isEmpty() || !plannedEnd.isEmpty()) {
             TextView plannedView = makeText(
                     "الشيفت المخطط\n"
-                    + (plannedStart.isEmpty() ? "—" : plannedStart.replace('T', ' '))
+                    + formatShiftTime(plannedStart)
                     + "\nإلى\n"
-                    + (plannedEnd.isEmpty() ? "—" : plannedEnd.replace('T', ' ')),
+                    + formatShiftTime(plannedEnd),
                     13, Color.rgb(255, 175, 95));
             plannedView.setMaxLines(5);
             LinearLayout.LayoutParams plannedParams = params(-1, -2);
@@ -518,6 +534,12 @@ public class MainActivity extends Activity {
         TextView section = makeText("المناديب  |  RIDERS", 18, Color.WHITE);
         section.setTypeface(null, Typeface.BOLD);
         content.addView(section, params(-1, -2));
+
+        TextView syncStatusView = makeText(
+                "● " + rosterSyncStatus,
+                12, rosterSyncSuccessful ? green : Color.rgb(255, 100, 80));
+        syncStatusView.setTypeface(null, Typeface.BOLD);
+        content.addView(syncStatusView, params(-1, -2));
 
         TextView hint = makeText("آخر تحديث ناجح: " + lastRosterSyncLabel,
                 12, Color.rgb(156, 176, 199));
@@ -863,8 +885,15 @@ public class MainActivity extends Activity {
             try {
                 JSONObject response = new JSONObject(result);
                 if (!response.optBoolean("ok", false)) {
+                    rosterSyncSuccessful = false;
+                    int status = response.optInt("status", 0);
+                    rosterSyncStatus = status > 0
+                            ? "فشل الاتصال (HTTP " + status + ")"
+                            : "فشلت المزامنة";
+                    if (dashboardVisible && !currentUsername.isEmpty()) {
+                        showDashboard(currentUsername);
+                    }
                     if (notify) {
-                        int status = response.optInt("status", 0);
                         String error = response.optString("error", "");
                         String message = status > 0
                                 ? "Logistics API HTTP " + status
@@ -915,6 +944,8 @@ public class MainActivity extends Activity {
                 liveRiderDetails.clear();
                 liveRiderDetails.addAll(details);
 
+                rosterSyncSuccessful = true;
+                rosterSyncStatus = "متصل • تمت المزامنة بنجاح";
                 lastRosterSyncLabel = new java.text.SimpleDateFormat(
                         "HH:mm:ss", java.util.Locale.getDefault())
                         .format(new java.util.Date());
