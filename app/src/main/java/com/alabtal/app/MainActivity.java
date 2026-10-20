@@ -36,6 +36,10 @@ public class MainActivity extends Activity {
     private final Handler rosterHandler = new Handler(Looper.getMainLooper());
     private Runnable rosterAutoSync;
     private String lastRosterSyncLabel = "لم تتم المزامنة";
+    private WebView rosterWebView;
+    private boolean rosterPageLoaded = false;
+    private boolean dashboardVisible = false;
+    private String currentUsername = "";
 
     private int rosterSyncAttempts = 0;
 
@@ -316,7 +320,8 @@ public class MainActivity extends Activity {
     }
 
     private void showDashboard(String username) {
-        stopRosterAutoSync();
+        currentUsername = username;
+        dashboardVisible = true;
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -442,6 +447,8 @@ public class MainActivity extends Activity {
         logout.setAllCaps(false);
         logout.setBackground(shape(Color.rgb(29, 44, 65), 12));
         logout.setOnClickListener(v -> {
+            stopRosterAutoSync();
+            dashboardVisible = false;
             auth.signOut();
             showLogin();
         });
@@ -453,6 +460,57 @@ public class MainActivity extends Activity {
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+
+        ensureRosterWebView();
+        attachRosterWebView(root, false);
+        if (!rosterPageLoaded) {
+            rosterPageLoaded = true;
+            rosterWebView.loadUrl("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl");
+        } else if (rosterAutoSync == null) {
+            syncRosterData(rosterWebView, false);
+            startRosterAutoSync(rosterWebView);
+        }
+    }
+
+    private void ensureRosterWebView() {
+        if (rosterWebView != null) return;
+
+        rosterWebView = new WebView(this);
+        WebSettings settings = rosterWebView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        rosterWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                syncRosterData(view, false);
+                startRosterAutoSync(view);
+            }
+        });
+    }
+
+    private void attachRosterWebView(LinearLayout root, boolean fullSize) {
+        if (rosterWebView == null) return;
+
+        android.view.ViewParent parent = rosterWebView.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(rosterWebView);
+        }
+
+        if (fullSize) {
+            rosterWebView.setAlpha(1f);
+            rosterWebView.setImportantForAccessibility(
+                    View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            root.addView(rosterWebView,
+                    new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            // Keep the roster page attached while the dashboard is visible.
+            rosterWebView.setAlpha(0f);
+            rosterWebView.setImportantForAccessibility(
+                    View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            root.addView(rosterWebView,
+                    new LinearLayout.LayoutParams(1, 1));
+        }
     }
 
     private void stopRosterAutoSync() {
@@ -477,7 +535,9 @@ public class MainActivity extends Activity {
     }
 
     private void showRosterPage(String username) {
-        stopRosterAutoSync();
+        dashboardVisible = false;
+        currentUsername = username;
+        ensureRosterWebView();
         LinearLayout root = column();
         root.setBackgroundColor(background);
 
@@ -506,23 +566,16 @@ public class MainActivity extends Activity {
         toolbar.addView(syncButton, params(-2, 48));
         root.addView(toolbar, params(-1, -2));
 
-        WebView webView = new WebView(this);
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                syncRosterData(view, false);
-                startRosterAutoSync(view);
-            }
-        });
-
-        syncButton.setOnClickListener(v -> syncRosterData(webView, false));
-        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        syncButton.setOnClickListener(v -> syncRosterData(rosterWebView, false));
         setContentView(root);
-        webView.loadUrl("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl");
+        attachRosterWebView(root, true);
+        if (!rosterPageLoaded) {
+            rosterPageLoaded = true;
+            rosterWebView.loadUrl("https://eg.me.logisticsbackoffice.com/dashboard/rooster/live-3pl");
+        } else {
+            syncRosterData(rosterWebView, false);
+            if (rosterAutoSync == null) startRosterAutoSync(rosterWebView);
+        }
     }
 
     private void syncRosterData(WebView webView, boolean notify) {
@@ -674,6 +727,11 @@ public class MainActivity extends Activity {
                     return;
                 }
 
+                boolean rosterDataChanged =
+                        !liveRiderNames.equals(names)
+                        || !liveRiderStates.equals(states)
+                        || !liveRiderDetails.toString().equals(details.toString());
+
                 rosterSyncAttempts = 0;
                 liveRiderNames.clear();
                 liveRiderNames.addAll(names);
@@ -704,6 +762,11 @@ public class MainActivity extends Activity {
                         "Updated " + names.size() + " riders. Last sync: "
                                 + lastRosterSyncLabel + ". Tap Back to view dashboard.",
                         Toast.LENGTH_LONG).show();
+
+                if (dashboardVisible && !currentUsername.isEmpty()
+                        && rosterDataChanged) {
+                    showDashboard(currentUsername);
+                }
             } catch (Exception e) {
                 if (notify) Toast.makeText(this, "Could not read roster table.",
                         Toast.LENGTH_LONG).show();
