@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private String currentUsername = "";
 
     private int rosterSyncAttempts = 0;
+    private int rosterRefreshTicks = 0;
 
 
     private final int navy = Color.rgb(10, 22, 40);
@@ -527,6 +528,15 @@ public class MainActivity extends Activity {
             public void run() {
                 if (webView.getParent() != null) {
                     syncRosterData(webView, false);
+                    rosterRefreshTicks++;
+                    if (rosterRefreshTicks >= 4) {
+                        rosterRefreshTicks = 0;
+                        webView.postDelayed(() -> {
+                            if (webView.getParent() != null) {
+                                webView.reload();
+                            }
+                        }, 2500);
+                    }
                     rosterHandler.postDelayed(this, 30000);
                 }
             }
