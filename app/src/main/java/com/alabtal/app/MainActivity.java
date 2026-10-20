@@ -576,7 +576,7 @@ public class MainActivity extends Activity {
         toolbar.addView(syncButton, params(-2, 48));
         root.addView(toolbar, params(-1, -2));
 
-        syncButton.setOnClickListener(v -> syncRosterData(rosterWebView, false));
+        syncButton.setOnClickListener(v -> syncRosterData(rosterWebView, true));
         setContentView(root);
         attachRosterWebView(root, true);
         if (!rosterPageLoaded) {
