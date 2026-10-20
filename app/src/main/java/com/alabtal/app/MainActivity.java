@@ -283,17 +283,23 @@ public class MainActivity extends Activity {
         String performance = detail.optString("performance", "");
         String acceptance = detail.optString("acceptance", "");
         String worked = detail.optString("worked", "");
+        String plannedStart = detail.optString("plannedShiftStart", "");
+        String plannedEnd = detail.optString("plannedShiftEnd", "");
 
-        String line1 = "الشيفت: " + (session.isEmpty() ? "—" : session)
+        String line1 = "الشيفت الحالي: " + (session.isEmpty() ? "—" : session)
                 + "   •   المحفظة: " + (wallet.isEmpty() ? "—" : wallet);
         String line2 = "التوصيلات/الأداء: "
                 + (performance.isEmpty() ? "—" : performance)
                 + "   •   القبول: " + (acceptance.isEmpty() ? "—" : acceptance);
         String line3 = "وقت العمل: " + (worked.isEmpty() ? "—" : worked);
 
-        TextView metrics = makeText(line1 + "\n" + line2 + "\n" + line3,
-                10, muted);
-        metrics.setMaxLines(3);
+        String plannedLine = plannedStart.isEmpty() || plannedEnd.isEmpty()
+                ? "" : "\nالشيفت المخطط: " + plannedStart.replace('T', ' ')
+                + " - " + plannedEnd.replace('T', ' ');
+
+        TextView metrics = makeText(line1 + "\n" + line2 + "\n" + line3
+                + plannedLine, 10, muted);
+        metrics.setMaxLines(4);
         LinearLayout.LayoutParams metricParams = params(-1, -2);
         metricParams.topMargin = dp(5);
         card.addView(metrics, metricParams);
@@ -644,6 +650,10 @@ public class MainActivity extends Activity {
                 "if(rows.length<size)break;" +
                 "}" +
                 "var mapped=[];" +
+                "var shiftRows=[];var shiftMap={};" +
+                "function findShiftArray(o,depth){if(depth>6||o==null)return null;if(Array.isArray(o)){for(var z=0;z<o.length;z++){var q=o[z];if(q&&typeof q==='object'&&q.employee_id!=null&&q.start&&q.end)return o;}for(var a=0;a<o.length;a++){var nested=findShiftArray(o[a],depth+1);if(nested)return nested;}return null;}if(typeof o==='object'){var ks=Object.keys(o);for(var b=0;b<ks.length;b++){var found=findShiftArray(o[ks[b]],depth+1);if(found)return found;}}return null;}" +
+                "try{var clock=new Date();var from=new Date(clock.getTime()-2*86400000);var to=new Date(clock.getTime()+8*86400000);for(var sp=0;sp<50;sp++){var su='/api/rooster/v3/shifts?city_id=214&distinct_day_plans=false&end_at='+encodeURIComponent(to.toISOString())+'&page='+sp+'&size=100&start_at='+encodeURIComponent(from.toISOString())+'&with_evaluations=true&with_field_id_number&with_time_zone=Africa%2FCairo';var sr=await fetch(su,{method:'GET',credentials:'include',headers:{'Accept':'application/json'}});if(!sr.ok)break;var sj=await sr.json();var srows=findShiftArray(sj,0);if(!srows||!srows.length)break;shiftRows=shiftRows.concat(srows);if(srows.length<100)break;}}catch(se){}" +
+                "for(var si=0;si<shiftRows.length;si++){var sh=shiftRows[si]||{};var eid=text(sh.employee_id);if(!eid)continue;if(!shiftMap[eid])shiftMap[eid]=[];shiftMap[eid].push(sh);}" +
                 "for(var i=0;i<all.length;i++) {" +
                 "var r=all[i]||{};" +
                 "var name=text(val(r,['name','full_name','employee_name'])).trim();" +
@@ -675,6 +685,8 @@ public class MainActivity extends Activity {
                 "latitude:text(lat),longitude:text(lon)," +
                 "hasActiveDeliveries:Number(val(r,['deliveries_info.active_deliveries_count'," +
                 "'active_deliveries_count']))>0};" +
+                "var candidates=(shiftMap[d.employeeId]||[]).filter(function(x){return x.end&&new Date(x.end).getTime()>=Date.now();}).sort(function(a,b){return new Date(a.start).getTime()-new Date(b.start).getTime();});" +
+                "if(candidates.length){var ps=candidates[0];d.plannedShiftStart=text(ps.start);d.plannedShiftEnd=text(ps.end);d.plannedShiftState=text(ps.state);d.plannedShiftTag=text(ps.tag);}" +
                 "mapped.push({name:name,state:status||'Unknown',detail:d});" +
                 "}" +
                 "return JSON.stringify({ok:true,riders:mapped,count:mapped.length,pages:page+1});" +
