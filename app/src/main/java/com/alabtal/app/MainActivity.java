@@ -595,8 +595,38 @@ public class MainActivity extends Activity {
                 12, Color.rgb(156, 176, 199));
         LinearLayout.LayoutParams hintParams = params(-1, -2);
         hintParams.topMargin = dp(5);
-        hintParams.bottomMargin = dp(14);
+        hintParams.bottomMargin = dp(10);
         content.addView(hint, hintParams);
+
+        int activeRiders = 0;
+        int ridersWithDeliveries = 0;
+        for (int i = 0; i < liveRiderNames.size(); i++) {
+            String state = i < liveRiderStates.size()
+                    ? liveRiderStates.get(i) : "";
+            String st = state.toLowerCase(java.util.Locale.ROOT);
+            if (!st.contains("offline") && !st.contains("inactive")
+                    && !st.contains("not active")
+                    && (st.contains("active") || st.contains("online")
+                    || st.contains("available") || st.equals("working"))) {
+                activeRiders++;
+            }
+            if (i < liveRiderDetails.size()
+                    && liveRiderDetails.get(i).optBoolean("hasActiveDeliveries", false)) {
+                ridersWithDeliveries++;
+            }
+        }
+
+        LinearLayout summaryRow = new LinearLayout(this);
+        summaryRow.setOrientation(LinearLayout.HORIZONTAL);
+        summaryRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams summaryParams = params(-1, -2);
+        summaryParams.bottomMargin = dp(14);
+        content.addView(summaryRow, summaryParams);
+        addRiderMetric(summaryRow, "إجمالي المناديب",
+                String.valueOf(liveRiderNames.size()));
+        addRiderMetric(summaryRow, "النشطون", String.valueOf(activeRiders));
+        addRiderMetric(summaryRow, "لديهم طلبات نشطة",
+                String.valueOf(ridersWithDeliveries));
 
         Button refreshButton = new Button(this);
         refreshButton.setText("⟳  تحديث البيانات  •  تلقائي كل 30 ثانية");
@@ -890,6 +920,19 @@ public class MainActivity extends Activity {
                 "var loc=val(r,['current_location']);" +
                 "var lat=val(r,['current_location.latitude','latitude']);" +
                 "var lon=val(r,['current_location.longitude','longitude']);" +
+                "var deliveries=val(r,['deliveries_info.latest_deliveries','latest_deliveries']);" +
+                "var orderLocation='';var latestOrderCode='';" +
+                "var pickupAddress='';var dropoffAddress='';" +
+                "if(Array.isArray(deliveries)&&deliveries.length){" +
+                "var od=deliveries[0]||{};" +
+                "latestOrderCode=text(val(od,['order_code','orderCode','code']));" +
+                "pickupAddress=text(val(od,['pickup_address','pickupAddress']));" +
+                "dropoffAddress=text(val(od,['dropoff_address','dropoffAddress','delivery_address']));" +
+                "var locParts=[];" +
+                "if(latestOrderCode)locParts.push('أوردر '+latestOrderCode);" +
+                "if(dropoffAddress)locParts.push('تسليم: '+dropoffAddress);" +
+                "if(pickupAddress)locParts.push('استلام: '+pickupAddress);" +
+                "orderLocation=locParts.join(' | ');}" +
                 "var shift=text(val(r,['current_session','session','shift.name','shift_info.name']));" +
                 "if(!shift) {" +
                 "var ss=val(r,['shift_start','shift.start_time','shift_info.start_time']);" +
@@ -904,8 +947,12 @@ public class MainActivity extends Activity {
                 "late:duration(late),breakTime:duration(breaks)," +
                 "location:(lat!==''&&lon!==''?text(lat)+', '+text(lon):text(loc))," +
                 "latitude:text(lat),longitude:text(lon)," +
+                "orderLocation:orderLocation,latestOrderCode:latestOrderCode," +
+                "pickupAddress:pickupAddress,dropoffAddress:dropoffAddress," +
+                "activeDeliveriesCount:Number(val(r,['deliveries_info.active_deliveries_count'," +
+                "'active_deliveries_count']))||((Array.isArray(deliveries))?deliveries.length:0)," +
                 "hasActiveDeliveries:Number(val(r,['deliveries_info.active_deliveries_count'," +
-                "'active_deliveries_count']))>0};" +
+                "'active_deliveries_count']))>0||((Array.isArray(deliveries))&&deliveries.length>0)};" +
                 "var candidates=(shiftMap[d.employeeId]||[]).filter(function(x){return x.end&&new Date(x.end).getTime()>=Date.now();}).sort(function(a,b){return new Date(a.start).getTime()-new Date(b.start).getTime();});" +
                 "if(candidates.length){var ps=candidates[0];d.plannedShiftStart=text(ps.start);d.plannedShiftEnd=text(ps.end);d.plannedShiftState=text(ps.state);d.plannedShiftTag=text(ps.tag);}" +
                 "mapped.push({name:name,state:status||'Unknown',detail:d});" +
