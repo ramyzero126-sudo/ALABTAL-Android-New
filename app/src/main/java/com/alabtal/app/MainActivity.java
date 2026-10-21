@@ -287,6 +287,11 @@ public class MainActivity extends Activity {
     }
 
 
+    private final java.util.HashMap<String, Long> workTimerBaseSeconds =
+            new java.util.HashMap<>();
+    private final java.util.HashMap<String, Long> workTimerBaseAtMillis =
+            new java.util.HashMap<>();
+
     private long parseWorkedSeconds(JSONObject detail, String worked) {
         long seconds = detail.optLong("workedSeconds", -1L);
         if (seconds >= 0) return seconds;
@@ -313,10 +318,33 @@ public class MainActivity extends Activity {
     }
 
     private void addWorkTimeMetric(LinearLayout row, JSONObject detail,
-                                   String worked) {
+                                   String worked, String riderName) {
         final int orange = Color.rgb(255, 151, 55);
-        final long baseSeconds = parseWorkedSeconds(detail, worked);
-        final long startedAt = System.currentTimeMillis();
+        final String key = detail.optString("employee_id",
+                detail.optString("rider_id",
+                detail.optString("id", riderName == null ? "" : riderName)));
+
+        long serverSeconds = parseWorkedSeconds(detail, worked);
+        long now = System.currentTimeMillis();
+
+        if (serverSeconds >= 0) {
+            Long savedBase = workTimerBaseSeconds.get(key);
+            Long savedAt = workTimerBaseAtMillis.get(key);
+
+            if (savedBase == null || savedAt == null) {
+                workTimerBaseSeconds.put(key, serverSeconds);
+                workTimerBaseAtMillis.put(key, now);
+            } else {
+                long currentEstimate = savedBase + Math.max(0L, (now - savedAt) / 1000L);
+                if (serverSeconds > currentEstimate) {
+                    workTimerBaseSeconds.put(key, serverSeconds);
+                    workTimerBaseAtMillis.put(key, now);
+                }
+            }
+        }
+
+        final Long storedBase = workTimerBaseSeconds.get(key);
+        final Long storedAt = workTimerBaseAtMillis.get(key);
 
         LinearLayout tile = column();
         tile.setGravity(Gravity.CENTER);
@@ -345,25 +373,26 @@ public class MainActivity extends Activity {
         lp.rightMargin = dp(3);
         row.addView(tile, lp);
 
-        if (baseSeconds < 0) return;
+        if (storedBase == null || storedAt == null) return;
 
-        final Runnable[] ticker = new Runnable[1];
-        ticker[0] = new Runnable() {
+        data.post(new Runnable() {
             @Override
             public void run() {
                 if (data.getParent() == null) return;
+
                 long elapsed = Math.max(0L,
-                        (System.currentTimeMillis() - startedAt) / 1000L);
-                long total = baseSeconds + elapsed;
+                        (System.currentTimeMillis() - storedAt) / 1000L);
+                long total = storedBase + elapsed;
                 long hours = total / 3600L;
                 long minutes = (total % 3600L) / 60L;
                 long seconds = total % 60L;
+
                 data.setText(String.format(java.util.Locale.ROOT,
                         "%02d:%02d:%02d", hours, minutes, seconds));
+
                 if (data.isShown()) data.postDelayed(this, 1000L);
             }
-        };
-        data.post(ticker[0]);
+        });
     }
 
     private void addRiderInfoBox(LinearLayout parent, String label,
@@ -472,7 +501,7 @@ public class MainActivity extends Activity {
         metricsLp.topMargin = dp(12);
 
         addRiderMetric(metrics, "نسبة القبول", acceptance);
-        addWorkTimeMetric(metrics, detail, worked);
+        addWorkTimeMetric(metrics, detail, worked, name);
 
         String planned = (!plannedStart.isEmpty() || !plannedEnd.isEmpty())
                 ? formatShiftTime(plannedStart) + " - "
@@ -959,6 +988,28 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+
+                if (url != null && url.contains("/dashboard/rooster/review")) {
+                    String probe =
+                        "(function(){" +
+                        "var a=performance.getEntriesByType('resource').map(function(x){" +
+                        "try{var u=new URL(x.name);return u.origin+u.pathname;}catch(e){return '';}" +
+                        "}).filter(function(x){return /api|booking|review|reservation|rooster/i.test(x);});" +
+                        "return JSON.stringify(Array.from(new Set(a)).slice(-80));" +
+                        "})()";
+
+                    view.evaluateJavascript(probe, result -> {
+                        String output = result == null ? "لم تظهر عناوين بيانات." :
+                            result.replace("\\\\", "").replace("\\\"[", "[").replace("]\\\"", "]");
+                        new android.app.AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Review API URLs")
+                            .setMessage(output)
+                            .setPositiveButton("حسناً", null)
+                            .show();
+                    });
+                    return;
+                }
+
                 syncRosterData(view, false);
                 startRosterAutoSync(view);
             }
@@ -1177,7 +1228,7 @@ public class MainActivity extends Activity {
                 "startingPoint:text(val(r,['starting_point.name','starting_point_name']))," +
                 "session:shift,wallet:text(bal),performance:percent(perf)," +
                 "acceptance:percent(acc),worked:duration(worked)," +
-                "workedSeconds:Number(worked)||0," +
+                "workedSeconds:(worked!==''&&isFinite(Number(worked))?Number(worked):-1)," +
                 "late:duration(late),breakTime:duration(breaks)," +
                 "location:(lat!==''&&lon!==''?text(lat)+', '+text(lon):text(loc))," +
                 "latitude:text(lat),longitude:text(lon)," +
