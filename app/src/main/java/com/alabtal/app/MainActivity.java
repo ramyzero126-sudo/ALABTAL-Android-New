@@ -1448,7 +1448,10 @@ public class MainActivity extends Activity {
                 "if(candidates.length){var ps=candidates[0];d.plannedShiftStart=text(ps.start);d.plannedShiftEnd=text(ps.end);d.plannedShiftState=text(ps.state);d.plannedShiftTag=text(ps.tag);}" +
                 "mapped.push({name:name,state:status||'Unknown',detail:d});" +
                 "}" +
-                "return JSON.stringify({ok:true,riders:mapped,count:mapped.length,pages:page+1});" +
+                "var sample=all[0]||{};" +
+                "var sampleDeliveries=sample.deliveries_info&&sample.deliveries_info.latest_deliveries;" +
+                "var schema={root:Object.keys(sample),timeSpent:Object.keys(sample.time_spent||{}),deliveriesInfo:Object.keys(sample.deliveries_info||{}),firstDelivery:Object.keys(Array.isArray(sampleDeliveries)&&sampleDeliveries.length?sampleDeliveries[0]||{}:{})};" +
+                "return JSON.stringify({ok:true,riders:mapped,count:mapped.length,pages:page+1,schema:schema});" +
                 "} catch(e) {return JSON.stringify({ok:false,error:String(e)});}" +
                 "})().then(function(v){window.__alabtalRosterResult=v;},function(e){window.__alabtalRosterResult=JSON.stringify({ok:false,error:String(e)});});" +
                 "'started'";
@@ -1499,6 +1502,17 @@ public class MainActivity extends Activity {
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                     }
                     return;
+                }
+
+                if (notify && response.has("schema")) {
+                    JSONObject schema = response.optJSONObject("schema");
+                    if (schema != null) {
+                        new android.app.AlertDialog.Builder(this)
+                                .setTitle("API field names")
+                                .setMessage(schema.toString(2))
+                                .setPositiveButton("OK", null)
+                                .show();
+                    }
                 }
 
                 JSONArray riders = response.optJSONArray("riders");
