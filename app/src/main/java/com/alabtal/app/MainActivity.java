@@ -501,7 +501,7 @@ public class MainActivity extends Activity {
         metricsLp.topMargin = dp(12);
 
         addRiderMetric(metrics, "نسبة القبول", acceptance);
-        addWorkTimeMetric(metrics, detail, worked, name);
+        addWorkTimeMetric(metrics, detail, worked, name.getText().toString());
 
         String planned = (!plannedStart.isEmpty() || !plannedEnd.isEmpty())
                 ? formatShiftTime(plannedStart) + " - "
