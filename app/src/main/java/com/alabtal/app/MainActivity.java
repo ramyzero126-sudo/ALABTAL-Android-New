@@ -706,6 +706,68 @@ public class MainActivity extends Activity {
             countCardParams.bottomMargin = dp(16);
             content.addView(countCard, countCardParams);
 
+            int activeRidersCount = 0;
+            int ridersWithOrdersCount = 0;
+
+            for (int i = 0; i < liveRiderNames.size(); i++) {
+                String stateValue = i < liveRiderStates.size()
+                        ? liveRiderStates.get(i) : "";
+                String normalizedState = stateValue == null
+                        ? "" : stateValue.toLowerCase(java.util.Locale.ROOT);
+
+                if (normalizedState.contains("working")
+                        || normalizedState.equals("active")
+                        || normalizedState.contains("online")
+                        || normalizedState.contains("available")) {
+                    activeRidersCount++;
+                }
+
+                if (i < liveRiderDetails.size()) {
+                    JSONObject d = liveRiderDetails.get(i);
+                    if (d != null && (d.optBoolean("hasActiveDeliveries", false)
+                            || d.optInt("activeDeliveriesCount", 0) > 0)) {
+                        ridersWithOrdersCount++;
+                    }
+                }
+            }
+
+            LinearLayout statsRow = new LinearLayout(this);
+            statsRow.setOrientation(LinearLayout.HORIZONTAL);
+            statsRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            String[] statLabels = {"في الشغل", "معاهم أوردر", "إجمالي"};
+            int[] statValues = {activeRidersCount, ridersWithOrdersCount,
+                    liveRiderNames.size()};
+
+            for (int si = 0; si < statLabels.length; si++) {
+                LinearLayout statCard = column();
+                statCard.setGravity(Gravity.CENTER);
+                statCard.setPadding(dp(5), dp(12), dp(5), dp(12));
+                statCard.setBackground(shape(Color.rgb(24, 24, 24), 12));
+
+                TextView statNumber = makeText(
+                        String.valueOf(statValues[si]), 22, Color.WHITE);
+                statNumber.setTypeface(null, Typeface.BOLD);
+                statNumber.setGravity(Gravity.CENTER);
+                statCard.addView(statNumber, params(-1, -2));
+
+                TextView statLabel = makeText(
+                        statLabels[si], 11, Color.rgb(255, 160, 70));
+                statLabel.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams slp = params(-1, -2);
+                slp.topMargin = dp(4);
+                statCard.addView(statLabel, slp);
+
+                LinearLayout.LayoutParams statLp =
+                        new LinearLayout.LayoutParams(0, -2, 1f);
+                if (si > 0) statLp.leftMargin = dp(6);
+                statsRow.addView(statCard, statLp);
+            }
+
+            LinearLayout.LayoutParams statsRowLp = params(-1, -2);
+            statsRowLp.bottomMargin = dp(14);
+            content.addView(statsRow, statsRowLp);
+
             for (int i = 0; i < liveRiderNames.size(); i++) {
                 String riderState = i < liveRiderStates.size()
                         ? liveRiderStates.get(i) : "Unknown";
@@ -717,6 +779,39 @@ public class MainActivity extends Activity {
 
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        // Bottom navigation: Home and Bookings
+        LinearLayout bottomNav = new LinearLayout(this);
+        bottomNav.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNav.setGravity(Gravity.CENTER);
+        bottomNav.setPadding(dp(10), dp(8), dp(10), dp(8));
+        bottomNav.setBackground(shape(Color.rgb(18, 18, 18), 0));
+
+        Button homeTab = new Button(this);
+        homeTab.setText("⌂  الرئيسية");
+        homeTab.setAllCaps(false);
+        homeTab.setTextColor(Color.WHITE);
+        homeTab.setTextSize(13);
+        homeTab.setBackground(shape(green, 12));
+
+        Button bookingsTab = new Button(this);
+        bookingsTab.setText("▣  الحجوزات");
+        bookingsTab.setAllCaps(false);
+        bookingsTab.setTextColor(green);
+        bookingsTab.setTextSize(13);
+        bookingsTab.setBackground(shape(Color.rgb(35, 28, 22), 12));
+
+        LinearLayout.LayoutParams tabParams =
+                new LinearLayout.LayoutParams(0, dp(46), 1f);
+        tabParams.leftMargin = dp(5);
+        tabParams.rightMargin = dp(5);
+        bottomNav.addView(homeTab, tabParams);
+        bottomNav.addView(bookingsTab, tabParams);
+        root.addView(bottomNav, params(-1, 62));
+
+        homeTab.setOnClickListener(v -> showDashboard(username));
+        bookingsTab.setOnClickListener(v -> showBookings(username));
+
         setContentView(root);
 
         ensureRosterWebView();
@@ -728,6 +823,90 @@ public class MainActivity extends Activity {
             syncRosterData(rosterWebView, false);
             startRosterAutoSync(rosterWebView);
         }
+    }
+
+
+    private void showBookings(String username) {
+        currentUsername = username;
+        dashboardVisible = true;
+
+        LinearLayout root = column();
+        root.setBackgroundColor(background);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(16), dp(14), dp(16), dp(14));
+        header.setBackground(shape(navy, 0));
+
+        Button back = new Button(this);
+        back.setText("‹");
+        back.setTextSize(25);
+        back.setTextColor(green);
+        back.setAllCaps(false);
+        back.setBackground(shape(Color.rgb(35, 28, 22), 10));
+        header.addView(back, params(48, 46));
+        back.setOnClickListener(v -> showDashboard(username));
+
+        TextView title = makeText("الحجوزات  |  BOOKINGS", 18, green);
+        title.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams titleParams =
+                new LinearLayout.LayoutParams(0, -2, 1f);
+        titleParams.leftMargin = dp(12);
+        header.addView(title, titleParams);
+        root.addView(header, params(-1, -2));
+
+        LinearLayout body = column();
+        body.setPadding(dp(16), dp(20), dp(16), dp(20));
+
+        TextView heading = makeText("إدارة الحجوزات", 21, Color.WHITE);
+        heading.setTypeface(null, Typeface.BOLD);
+        body.addView(heading, params(-1, -2));
+
+        TextView subtitle = makeText(
+                "صفحة الحجوزات في ALABTAL",
+                13, Color.rgb(190, 190, 190));
+        LinearLayout.LayoutParams subtitleParams = params(-1, -2);
+        subtitleParams.topMargin = dp(6);
+        body.addView(subtitle, subtitleParams);
+
+        LinearLayout info = column();
+        info.setPadding(dp(16), dp(16), dp(16), dp(16));
+        GradientDrawable infoBg = shape(Color.rgb(24, 21, 18), 14);
+        infoBg.setStroke(dp(1), green);
+        info.setBackground(infoBg);
+
+        TextView infoTitle = makeText(
+                "بانتظار ربط بيانات الحجوزات",
+                16, green);
+        infoTitle.setTypeface(null, Typeface.BOLD);
+        info.addView(infoTitle, params(-1, -2));
+
+        TextView infoText = makeText(
+                "واجهة الحجوزات جاهزة. لعرض الإجمالي والمحجوز وغير المحجوز "
+                + "والنسبة الفعلية، يجب تحديد مصدر بيانات الحجوزات من موقع اللوجستكس.",
+                13, Color.WHITE);
+        infoText.setLineSpacing(dp(4), 1f);
+        LinearLayout.LayoutParams infoTextParams = params(-1, -2);
+        infoTextParams.topMargin = dp(10);
+        info.addView(infoText, infoTextParams);
+
+        LinearLayout.LayoutParams infoParams = params(-1, -2);
+        infoParams.topMargin = dp(20);
+        body.addView(info, infoParams);
+
+        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        Button home = new Button(this);
+        home.setText("العودة للرئيسية");
+        home.setAllCaps(false);
+        home.setTextColor(Color.WHITE);
+        home.setBackground(shape(green, 12));
+        LinearLayout.LayoutParams homeParams = params(-1, 48);
+        homeParams.setMargins(dp(16), dp(8), dp(16), dp(16));
+        root.addView(home, homeParams);
+        home.setOnClickListener(v -> showDashboard(username));
+
+        setContentView(root);
     }
 
     private void ensureRosterWebView() {
@@ -882,6 +1061,8 @@ public class MainActivity extends Activity {
                 "(n*100).toFixed(1):n.toFixed(1))+'%':text(v);" +
                 "}" +
                 "function duration(v) {" +
+                "if(v===null||v===undefined||v==='')return '';" +
+                "if(typeof v==='string'&&isNaN(Number(v)))return text(v);" +
                 "var n=Number(v); if(!isFinite(n)||n<0)return text(v);" +
                 "n=Math.floor(n); var h=Math.floor(n/3600);" +
                 "var m=Math.floor((n%3600)/60);" +
@@ -914,7 +1095,9 @@ public class MainActivity extends Activity {
                 "var perf=val(r,['performance.utilization_rate','utilization_rate','performance']);" +
                 "if(perf&&typeof perf==='object')perf=val(perf,['utilization_rate','rate','value']);" +
                 "var acc=val(r,['acceptance_rate','performance.acceptance_rate']);" +
-                "var worked=val(r,['time_spent.worked_seconds','worked_seconds','worked_time']);" +
+                "var worked=val(r,['time_spent.worked_seconds','time_spent.workedSeconds'," +
+                "'time_spent.total_worked_seconds','worked_seconds','workedSeconds'," +
+                "'worked_time_seconds','worked_time','total_worked_seconds']);" +
                 "var late=val(r,['time_spent.late_seconds','late_seconds']);" +
                 "var breaks=val(r,['time_spent.break_seconds','break_seconds']);" +
                 "var loc=val(r,['current_location']);" +
