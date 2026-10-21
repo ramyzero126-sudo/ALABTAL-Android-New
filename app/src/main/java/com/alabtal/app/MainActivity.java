@@ -1132,7 +1132,7 @@ public class MainActivity extends Activity {
                                             new java.text.SimpleDateFormat(
                                                     "HH:mm:ss", java.util.Locale.getDefault());
                                     outputFormat.setTimeZone(
-                                            java.text.TimeZone.getDefault());
+                                            java.util.TimeZone.getDefault());
                                     timeLabel = "  •  " + outputFormat.format(date);
                                 }
                             } catch (Exception ignored) {
