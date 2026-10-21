@@ -119,6 +119,34 @@ public class MainActivity extends Activity {
         }
     }
 
+    private JSONArray getRiderOrders(JSONObject detail) {
+        if (detail == null) return new JSONArray();
+
+        JSONArray best = getRiderOrders(detail);
+        if (best != null && best.length() > 0) return best;
+
+        JSONArray snake = detail.optJSONArray("latest_deliveries");
+        if (snake != null && snake.length() > 0) return snake;
+
+        JSONObject info = detail.optJSONObject("deliveries_info");
+        if (info == null) info = detail.optJSONObject("deliveriesInfo");
+
+        if (info != null) {
+            JSONArray nested = info.optJSONArray("latest_deliveries");
+            if (nested != null && nested.length() > 0) return nested;
+
+            nested = info.optJSONArray("latestDeliveries");
+            if (nested != null && nested.length() > 0) return nested;
+
+            nested = info.optJSONArray("deliveries");
+            if (nested != null && nested.length() > 0) return nested;
+        }
+
+        if (best != null) return best;
+        if (snake != null) return snake;
+        return new JSONArray();
+    }
+
     private void showLogin() {
         LinearLayout root = column();
         root.setGravity(Gravity.CENTER);
@@ -1000,7 +1028,7 @@ public class MainActivity extends Activity {
 
         int totalOrders = 0;
         for (JSONObject rider : liveRiderDetails) {
-            JSONArray orders = rider.optJSONArray("latestDeliveries");
+            JSONArray orders = getRiderOrders(rider);
             if (orders != null) totalOrders += orders.length();
         }
 
@@ -1020,7 +1048,7 @@ public class MainActivity extends Activity {
 
         for (int i = 0; i < liveRiderDetails.size(); i++) {
             JSONObject rider = liveRiderDetails.get(i);
-            JSONArray orders = rider.optJSONArray("latestDeliveries");
+            JSONArray orders = getRiderOrders(rider);
             if (orders == null) continue;
 
             String riderName = i < liveRiderNames.size()
@@ -1477,7 +1505,9 @@ public class MainActivity extends Activity {
                 "var loc=val(r,['current_location']);" +
                 "var lat=val(r,['current_location.latitude','latitude']);" +
                 "var lon=val(r,['current_location.longitude','longitude']);" +
-                "var deliveries=val(r,['deliveries_info.latest_deliveries','latest_deliveries']);" +
+                "var deliveries=val(r,['deliveries_info.latest_deliveries','deliveries_info.latestDeliveries','latest_deliveries','latestDeliveries']);" +
+                "if(!Array.isArray(deliveries)){var di=val(r,['deliveries_info','deliveriesInfo']);if(di&&typeof di==='object')deliveries=val(di,['latest_deliveries','latestDeliveries','deliveries']);}" +
+                "if(!Array.isArray(deliveries))deliveries=[];" +
                 "var orderLocation='';var latestOrderCode='';" +
                 "var pickupAddress='';var dropoffAddress='';" +
                 "if(Array.isArray(deliveries)&&deliveries.length){" +
@@ -1508,10 +1538,8 @@ public class MainActivity extends Activity {
                 "orderLocation:orderLocation,latestOrderCode:latestOrderCode," +
                 "pickupAddress:pickupAddress,dropoffAddress:dropoffAddress," +
                 "latestDeliveries:(Array.isArray(deliveries)?deliveries:[])," +
-                "activeDeliveriesCount:Number(val(r,['deliveries_info.active_deliveries_count'," +
-                "'active_deliveries_count']))||((Array.isArray(deliveries))?deliveries.length:0)," +
-                "hasActiveDeliveries:Number(val(r,['deliveries_info.active_deliveries_count'," +
-                "'active_deliveries_count']))>0||((Array.isArray(deliveries))&&deliveries.length>0)};" +
+                "activeDeliveriesCount:(function(){var n=0;for(var ai=0;ai<deliveries.length;ai++){var ast=text(val(deliveries[ai]||{},['status'])).toLowerCase();if(ast&&ast!=='completed'&&ast!=='cancelled'&&ast!=='canceled')n++;}if(n===0&&deliveries.length===0){var apiN=Number(val(r,['deliveries_info.active_deliveries_count','deliveries_info.activeDeliveriesCount','active_deliveries_count','activeDeliveriesCount']));if(isFinite(apiN)&&apiN>0)n=apiN;}return n;})()," +
+                "hasActiveDeliveries:val(r,['deliveries_info.has_active_deliveries','deliveries_info.hasActiveDeliveries','has_active_deliveries'])===true||deliveries.some(function(o){var st=text(val(o||{},['status'])).toLowerCase();return st&&st!=='completed'&&st!=='cancelled'&&st!=='canceled';})};" +
                 "var candidates=(shiftMap[d.employeeId]||[]).filter(function(x){return x.end&&new Date(x.end).getTime()>=Date.now();}).sort(function(a,b){return new Date(a.start).getTime()-new Date(b.start).getTime();});" +
                 "if(candidates.length){var ps=candidates[0];d.plannedShiftStart=text(ps.start);d.plannedShiftEnd=text(ps.end);d.plannedShiftState=text(ps.state);d.plannedShiftTag=text(ps.tag);}" +
                 "mapped.push({name:name,state:status||'Unknown',detail:d});" +
@@ -1648,7 +1676,7 @@ public class MainActivity extends Activity {
                 int ridersWithOrders = 0;
                 int totalSavedOrders = 0;
                 for (JSONObject detail : details) {
-                    JSONArray orders = detail.optJSONArray("latestDeliveries");
+                    JSONArray orders = getRiderOrders(detail);
                     if (orders != null && orders.length() > 0) {
                         ridersWithOrders++;
                         totalSavedOrders += orders.length();
