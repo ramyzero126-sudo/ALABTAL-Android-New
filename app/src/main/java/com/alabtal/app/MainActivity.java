@@ -1039,6 +1039,9 @@ public class MainActivity extends Activity {
                         order.optString("dropoffAddress",
                                 order.optString("delivery_address", ""))).trim();
                 String status = order.optString("status", "").trim();
+                String vendor = order.optString("vendor_name",
+                        order.optString("vendorName", "")).trim();
+                JSONArray timeline = order.optJSONArray("timeline");
 
                 LinearLayout card = column();
                 card.setPadding(dp(14), dp(14), dp(14), dp(14));
@@ -1056,6 +1059,12 @@ public class MainActivity extends Activity {
                 card.addView(makeText(
                         "المندوب: " + riderName, 13, Color.WHITE),
                         params(-1, -2));
+
+                if (!vendor.isEmpty()) {
+                    card.addView(makeText(
+                            "المطعم: " + vendor, 13, green),
+                            params(-1, -2));
+                }
 
                 if (!status.isEmpty()) {
                     card.addView(makeText(
@@ -1078,6 +1087,65 @@ public class MainActivity extends Activity {
                 dropoffView.setPadding(0, dp(4), 0, 0);
                 dropoffView.setLineSpacing(dp(3), 1f);
                 card.addView(dropoffView, params(-1, -2));
+
+                if (timeline != null && timeline.length() > 0) {
+                    TextView timelineTitle = makeText(
+                            "خطوات الأوردر", 14, green);
+                    timelineTitle.setTypeface(null, Typeface.BOLD);
+                    timelineTitle.setPadding(0, dp(12), 0, dp(5));
+                    card.addView(timelineTitle, params(-1, -2));
+
+                    for (int k = 0; k < timeline.length(); k++) {
+                        JSONObject step = timeline.optJSONObject(k);
+                        if (step == null) continue;
+
+                        String stepStatus = step.optString("status", "").trim();
+                        String timestamp = step.optString("timestamp", "").trim();
+                        if (stepStatus.isEmpty()) continue;
+
+                        String arabicStatus;
+                        switch (stepStatus) {
+                            case "dispatched": arabicStatus = "تم إرسال الطلب للمندوب"; break;
+                            case "courier_notified": arabicStatus = "تم إشعار المندوب"; break;
+                            case "accepted": arabicStatus = "قبل المندوب الأوردر"; break;
+                            case "near_pickup": arabicStatus = "المندوب يقترب من المطعم"; break;
+                            case "picked_up": arabicStatus = "استلم المندوب الأوردر"; break;
+                            case "left_pickup": arabicStatus = "غادر المندوب مكان الاستلام"; break;
+                            case "near_dropoff": arabicStatus = "المندوب يقترب من العميل"; break;
+                            case "completed": arabicStatus = "تم تسليم الأوردر"; break;
+                            case "cancelled": arabicStatus = "تم إلغاء الأوردر"; break;
+                            default: arabicStatus = stepStatus.replace('_', ' ');
+                        }
+
+                        String timeLabel = "";
+                        if (!timestamp.isEmpty()) {
+                            try {
+                                java.text.SimpleDateFormat inputFormat =
+                                        new java.text.SimpleDateFormat(
+                                                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                                                java.util.Locale.US);
+                                inputFormat.setTimeZone(
+                                        java.util.TimeZone.getTimeZone("UTC"));
+                                java.util.Date date = inputFormat.parse(timestamp);
+                                if (date != null) {
+                                    java.text.SimpleDateFormat outputFormat =
+                                            new java.text.SimpleDateFormat(
+                                                    "HH:mm:ss", java.util.Locale.getDefault());
+                                    outputFormat.setTimeZone(
+                                            java.text.TimeZone.getDefault());
+                                    timeLabel = "  •  " + outputFormat.format(date);
+                                }
+                            } catch (Exception ignored) {
+                                timeLabel = "  •  " + timestamp;
+                            }
+                        }
+
+                        card.addView(makeText(
+                                "• " + arabicStatus + timeLabel,
+                                12, Color.rgb(220, 220, 220)),
+                                params(-1, -2));
+                    }
+                }
             }
         }
 
