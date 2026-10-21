@@ -122,7 +122,7 @@ public class MainActivity extends Activity {
     private JSONArray getRiderOrders(JSONObject detail) {
         if (detail == null) return new JSONArray();
 
-        JSONArray best = getRiderOrders(detail);
+        JSONArray best = detail.optJSONArray("latestDeliveries");
         if (best != null && best.length() > 0) return best;
 
         JSONArray snake = detail.optJSONArray("latest_deliveries");
