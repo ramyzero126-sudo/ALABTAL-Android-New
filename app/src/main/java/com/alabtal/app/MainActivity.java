@@ -1645,9 +1645,19 @@ public class MainActivity extends Activity {
                         .apply();
 
                 rosterSyncAttempts = 0;
+                int ridersWithOrders = 0;
+                int totalSavedOrders = 0;
+                for (JSONObject detail : details) {
+                    JSONArray orders = detail.optJSONArray("latestDeliveries");
+                    if (orders != null && orders.length() > 0) {
+                        ridersWithOrders++;
+                        totalSavedOrders += orders.length();
+                    }
+                }
                 if (notify) Toast.makeText(this,
-                        "API synced " + names.size() + " riders. Last sync: "
-                                + lastRosterSyncLabel,
+                        "API synced " + names.size() + " riders. Riders with orders: "
+                                + ridersWithOrders + ". Orders found: " + totalSavedOrders
+                                + ". Last sync: " + lastRosterSyncLabel,
                         Toast.LENGTH_LONG).show();
 
                 if (dashboardVisible && !currentUsername.isEmpty() && changed) {
