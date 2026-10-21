@@ -293,24 +293,41 @@ public class MainActivity extends Activity {
             new java.util.HashMap<>();
 
     private long parseWorkedSeconds(JSONObject detail, String worked) {
-        long seconds = detail.optLong("workedSeconds", -1L);
-        if (seconds >= 0) return seconds;
+        Object raw = detail.opt("workedSeconds");
+        if (raw instanceof Number) {
+            long seconds = ((Number) raw).longValue();
+            if (seconds >= 0) return seconds;
+        }
 
         if (worked == null || worked.trim().isEmpty()) return -1L;
         String value = worked.trim();
 
         try {
             if (value.matches("\\d+")) return Long.parseLong(value);
+
+            if (value.matches("\\d{1,}:\\d{1,2}:\\d{1,2}")) {
+                String[] parts = value.split(":");
+                return Long.parseLong(parts[0]) * 3600L
+                        + Long.parseLong(parts[1]) * 60L
+                        + Long.parseLong(parts[2]);
+            }
+
             java.util.regex.Matcher hm = java.util.regex.Pattern
                     .compile("(\\d+)\\s*h", java.util.regex.Pattern.CASE_INSENSITIVE)
                     .matcher(value);
             java.util.regex.Matcher mm = java.util.regex.Pattern
                     .compile("(\\d+)\\s*m", java.util.regex.Pattern.CASE_INSENSITIVE)
                     .matcher(value);
+            java.util.regex.Matcher sm = java.util.regex.Pattern
+                    .compile("(\\d+)\\s*s", java.util.regex.Pattern.CASE_INSENSITIVE)
+                    .matcher(value);
+
             long hours = hm.find() ? Long.parseLong(hm.group(1)) : 0L;
             long minutes = mm.find() ? Long.parseLong(mm.group(1)) : 0L;
-            if (hm.reset().find() || mm.reset().find()) {
-                return hours * 3600L + minutes * 60L;
+            long secs = sm.find() ? Long.parseLong(sm.group(1)) : 0L;
+
+            if (hm.reset().find() || mm.reset().find() || sm.reset().find()) {
+                return hours * 3600L + minutes * 60L + secs;
             }
         } catch (Exception ignored) {
         }
@@ -1163,11 +1180,13 @@ public class MainActivity extends Activity {
                 "}" +
                 "function duration(v) {" +
                 "if(v===null||v===undefined||v==='')return '';" +
+                "if(typeof v==='string'&&/^\\d{1,}:\\d{1,2}:\\d{1,2}$/.test(v.trim()))return v.trim();" +
                 "if(typeof v==='string'&&isNaN(Number(v)))return text(v);" +
                 "var n=Number(v); if(!isFinite(n)||n<0)return text(v);" +
                 "n=Math.floor(n); var h=Math.floor(n/3600);" +
-                "var m=Math.floor((n%3600)/60);" +
-                "return h+'h '+m+'m';" +
+                "var m=Math.floor((n%3600)/60); var sec=n%60;" +
+                "return String(h).padStart(2,'0')+':'+" +
+                "String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');" +
                 "}" +
                 "for(;page<maxPages;page++) {" +
                 "var url='/api/rider-live-operations/v1/external/city/214/riders?page='+page+'&size='+size;" +
