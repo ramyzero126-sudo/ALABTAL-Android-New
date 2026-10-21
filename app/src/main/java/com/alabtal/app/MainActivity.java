@@ -476,6 +476,9 @@ public class MainActivity extends Activity {
         String plannedStart = detail.optString("plannedShiftStart", "");
         String plannedEnd = detail.optString("plannedShiftEnd", "");
         String orderLocation = detail.optString("orderLocation", "").trim();
+        int orderCount = Math.max(0, detail.optInt("activeDeliveriesCount", 0));
+        String orderCountLabel = detail.optBoolean("hasActiveDeliveries", false)
+                ? String.valueOf(orderCount) : "0";
 
         LinearLayout card = column();
         card.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -517,6 +520,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams metricsLp = params(-1, -2);
         metricsLp.topMargin = dp(12);
 
+        addRiderMetric(metrics, "الأوردرات النشطة", orderCountLabel);
         addRiderMetric(metrics, "نسبة القبول", acceptance);
         addWorkTimeMetric(metrics, detail, worked, name.getText().toString());
 
@@ -775,6 +779,46 @@ public class MainActivity extends Activity {
             }
         }
 
+        // إجمالي وقت العمل المسجل والأوردرات النشطة
+        long totalWorkedSeconds = 0L;
+        int ridersWithWorkTime = 0;
+        int totalActiveOrders = 0;
+
+        for (int i = 0; i < liveRiderDetails.size(); i++) {
+            JSONObject detail = liveRiderDetails.get(i);
+            if (detail == null) continue;
+
+            long seconds = parseWorkedSeconds(
+                    detail, detail.optString("worked", ""));
+            if (seconds >= 0) {
+                totalWorkedSeconds += seconds;
+                ridersWithWorkTime++;
+            }
+
+            totalActiveOrders += Math.max(
+                    0, detail.optInt("activeDeliveriesCount", 0));
+        }
+
+        long totalHours = totalWorkedSeconds / 3600L;
+        long totalMinutes = (totalWorkedSeconds % 3600L) / 60L;
+        String totalWorkLabel = ridersWithWorkTime == 0
+                ? "لا توجد بيانات"
+                : String.format(java.util.Locale.ROOT,
+                        "%d س %02d د", totalHours, totalMinutes);
+
+        LinearLayout summaryRow = new LinearLayout(this);
+        summaryRow.setOrientation(LinearLayout.HORIZONTAL);
+        summaryRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout.LayoutParams summaryParams = params(-1, -2);
+        summaryParams.bottomMargin = dp(14);
+        content.addView(summaryRow, summaryParams);
+
+        addRiderMetric(summaryRow, "إجمالي وقت العمل المسجل",
+                totalWorkLabel);
+        addRiderMetric(summaryRow, "الأوردرات النشطة",
+                String.valueOf(totalActiveOrders));
+
         Button refreshButton = new Button(this);
         refreshButton.setText("⟳  تحديث البيانات  •  تلقائي كل 30 ثانية");
         refreshButton.setTextColor(Color.WHITE);
@@ -886,16 +930,25 @@ public class MainActivity extends Activity {
         bookingsTab.setTextSize(13);
         bookingsTab.setBackground(shape(Color.rgb(35, 28, 22), 12));
 
+        Button ordersTab = new Button(this);
+        ordersTab.setText("▤  الأوردرات");
+        ordersTab.setAllCaps(false);
+        ordersTab.setTextColor(green);
+        ordersTab.setTextSize(13);
+        ordersTab.setBackground(shape(Color.rgb(35, 28, 22), 12));
+
         LinearLayout.LayoutParams tabParams =
                 new LinearLayout.LayoutParams(0, dp(46), 1f);
         tabParams.leftMargin = dp(5);
         tabParams.rightMargin = dp(5);
         bottomNav.addView(homeTab, tabParams);
         bottomNav.addView(bookingsTab, tabParams);
+        bottomNav.addView(ordersTab, tabParams);
         root.addView(bottomNav, params(-1, 62));
 
         homeTab.setOnClickListener(v -> showDashboard(username));
         bookingsTab.setOnClickListener(v -> showBookings(username));
+        ordersTab.setOnClickListener(v -> showOrders(username));
 
         setContentView(root);
 
@@ -910,6 +963,139 @@ public class MainActivity extends Activity {
         }
     }
 
+
+
+    private void showOrders(String username) {
+        currentUsername = username;
+        dashboardVisible = true;
+
+        LinearLayout root = column();
+        root.setBackgroundColor(background);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(16), dp(14), dp(16), dp(14));
+        header.setBackground(shape(navy, 0));
+
+        Button back = new Button(this);
+        back.setText("‹");
+        back.setTextSize(25);
+        back.setTextColor(green);
+        back.setAllCaps(false);
+        back.setBackground(shape(Color.rgb(35, 28, 22), 10));
+        header.addView(back, params(48, 46));
+        back.setOnClickListener(v -> showDashboard(username));
+
+        TextView title = makeText("الأوردرات  |  ORDERS", 18, green);
+        title.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams titleParams =
+                new LinearLayout.LayoutParams(0, -2, 1f);
+        titleParams.leftMargin = dp(12);
+        header.addView(title, titleParams);
+        root.addView(header, params(-1, -2));
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = column();
+        body.setPadding(dp(16), dp(16), dp(16), dp(20));
+
+        int totalOrders = 0;
+        for (JSONObject rider : liveRiderDetails) {
+            JSONArray orders = rider.optJSONArray("latestDeliveries");
+            if (orders != null) totalOrders += orders.length();
+        }
+
+        TextView summary = makeText(
+                "إجمالي الأوردرات المعروضة: " + totalOrders,
+                16, Color.WHITE);
+        summary.setTypeface(null, Typeface.BOLD);
+        body.addView(summary, params(-1, -2));
+
+        if (totalOrders == 0) {
+            TextView empty = makeText(
+                    "لا توجد أوردرات محفوظة. حدّث الروستر وانتظر اكتمال المزامنة.",
+                    14, Color.rgb(190, 190, 190));
+            empty.setPadding(dp(4), dp(18), dp(4), dp(18));
+            body.addView(empty, params(-1, -2));
+        }
+
+        for (int i = 0; i < liveRiderDetails.size(); i++) {
+            JSONObject rider = liveRiderDetails.get(i);
+            JSONArray orders = rider.optJSONArray("latestDeliveries");
+            if (orders == null) continue;
+
+            String riderName = i < liveRiderNames.size()
+                    ? liveRiderNames.get(i) : "مندوب";
+
+            for (int j = 0; j < orders.length(); j++) {
+                JSONObject order = orders.optJSONObject(j);
+                if (order == null) continue;
+
+                String code = order.optString("order_code",
+                        order.optString("orderCode",
+                                order.optString("code", ""))).trim();
+                String pickup = order.optString("pickup_address",
+                        order.optString("pickupAddress", "")).trim();
+                String dropoff = order.optString("dropoff_address",
+                        order.optString("dropoffAddress",
+                                order.optString("delivery_address", ""))).trim();
+                String status = order.optString("status", "").trim();
+
+                LinearLayout card = column();
+                card.setPadding(dp(14), dp(14), dp(14), dp(14));
+                card.setBackground(shape(Color.rgb(22, 22, 22), 14));
+
+                LinearLayout.LayoutParams cp = params(-1, -2);
+                cp.topMargin = dp(10);
+                body.addView(card, cp);
+
+                TextView orderTitle = makeText(
+                        code.isEmpty() ? "أوردر بدون رقم ظاهر" : "أوردر: " + code,
+                        16, green);
+                orderTitle.setTypeface(null, Typeface.BOLD);
+                card.addView(orderTitle, params(-1, -2));
+                card.addView(makeText(
+                        "المندوب: " + riderName, 13, Color.WHITE),
+                        params(-1, -2));
+
+                if (!status.isEmpty()) {
+                    card.addView(makeText(
+                            "الحالة: " + status, 12,
+                            Color.rgb(190, 190, 190)), params(-1, -2));
+                }
+
+                TextView pickupView = makeText(
+                        "عنوان الاستلام: " +
+                        (pickup.isEmpty() ? "غير متاح في البيانات" : pickup),
+                        13, Color.WHITE);
+                pickupView.setPadding(0, dp(8), 0, dp(4));
+                pickupView.setLineSpacing(dp(3), 1f);
+                card.addView(pickupView, params(-1, -2));
+
+                TextView dropoffView = makeText(
+                        "عنوان التسليم: " +
+                        (dropoff.isEmpty() ? "غير متاح في البيانات" : dropoff),
+                        13, Color.WHITE);
+                dropoffView.setPadding(0, dp(4), 0, 0);
+                dropoffView.setLineSpacing(dp(3), 1f);
+                card.addView(dropoffView, params(-1, -2));
+            }
+        }
+
+        scroll.addView(body);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        Button home = new Button(this);
+        home.setText("العودة للرئيسية");
+        home.setAllCaps(false);
+        home.setTextColor(Color.WHITE);
+        home.setBackground(shape(green, 12));
+        LinearLayout.LayoutParams hp = params(-1, 48);
+        hp.setMargins(dp(16), dp(8), dp(16), dp(16));
+        root.addView(home, hp);
+        home.setOnClickListener(v -> showDashboard(username));
+
+        setContentView(root);
+    }
 
     private void showBookings(String username) {
         currentUsername = username;
@@ -1253,6 +1439,7 @@ public class MainActivity extends Activity {
                 "latitude:text(lat),longitude:text(lon)," +
                 "orderLocation:orderLocation,latestOrderCode:latestOrderCode," +
                 "pickupAddress:pickupAddress,dropoffAddress:dropoffAddress," +
+                "latestDeliveries:(Array.isArray(deliveries)?deliveries:[])," +
                 "activeDeliveriesCount:Number(val(r,['deliveries_info.active_deliveries_count'," +
                 "'active_deliveries_count']))||((Array.isArray(deliveries))?deliveries.length:0)," +
                 "hasActiveDeliveries:Number(val(r,['deliveries_info.active_deliveries_count'," +
