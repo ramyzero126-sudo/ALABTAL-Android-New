@@ -286,6 +286,86 @@ public class MainActivity extends Activity {
         row.addView(tile, lp);
     }
 
+
+    private long parseWorkedSeconds(JSONObject detail, String worked) {
+        long seconds = detail.optLong("workedSeconds", -1L);
+        if (seconds >= 0) return seconds;
+
+        if (worked == null || worked.trim().isEmpty()) return -1L;
+        String value = worked.trim();
+
+        try {
+            if (value.matches("\\d+")) return Long.parseLong(value);
+            java.util.regex.Matcher hm = java.util.regex.Pattern
+                    .compile("(\\d+)\\s*h", java.util.regex.Pattern.CASE_INSENSITIVE)
+                    .matcher(value);
+            java.util.regex.Matcher mm = java.util.regex.Pattern
+                    .compile("(\\d+)\\s*m", java.util.regex.Pattern.CASE_INSENSITIVE)
+                    .matcher(value);
+            long hours = hm.find() ? Long.parseLong(hm.group(1)) : 0L;
+            long minutes = mm.find() ? Long.parseLong(mm.group(1)) : 0L;
+            if (hm.reset().find() || mm.reset().find()) {
+                return hours * 3600L + minutes * 60L;
+            }
+        } catch (Exception ignored) {
+        }
+        return -1L;
+    }
+
+    private void addWorkTimeMetric(LinearLayout row, JSONObject detail,
+                                   String worked) {
+        final int orange = Color.rgb(255, 151, 55);
+        final long baseSeconds = parseWorkedSeconds(detail, worked);
+        final long startedAt = System.currentTimeMillis();
+
+        LinearLayout tile = column();
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(5), dp(9), dp(5), dp(9));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.rgb(24, 21, 18));
+        bg.setCornerRadius(dp(11));
+        bg.setStroke(dp(1), Color.rgb(105, 62, 30));
+        tile.setBackground(bg);
+
+        TextView title = makeText("وقت العمل", 11, orange);
+        title.setGravity(Gravity.CENTER);
+        title.setTypeface(null, Typeface.BOLD);
+        tile.addView(title, params(-1, -2));
+
+        TextView data = makeText("—", 13, Color.WHITE);
+        data.setGravity(Gravity.CENTER);
+        data.setTypeface(null, Typeface.BOLD);
+        data.setMaxLines(2);
+        data.setPadding(0, dp(5), 0, 0);
+        tile.addView(data, params(-1, -2));
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        lp.leftMargin = dp(3);
+        lp.rightMargin = dp(3);
+        row.addView(tile, lp);
+
+        if (baseSeconds < 0) return;
+
+        final Runnable[] ticker = new Runnable[1];
+        ticker[0] = new Runnable() {
+            @Override
+            public void run() {
+                if (data.getParent() == null) return;
+                long elapsed = Math.max(0L,
+                        (System.currentTimeMillis() - startedAt) / 1000L);
+                long total = baseSeconds + elapsed;
+                long hours = total / 3600L;
+                long minutes = (total % 3600L) / 60L;
+                long seconds = total % 60L;
+                data.setText(String.format(java.util.Locale.ROOT,
+                        "%02d:%02d:%02d", hours, minutes, seconds));
+                if (data.isShown()) data.postDelayed(this, 1000L);
+            }
+        };
+        data.post(ticker[0]);
+    }
+
     private void addRiderInfoBox(LinearLayout parent, String label,
                                  String value, boolean orderBox) {
         int orange = Color.rgb(255, 151, 55);
@@ -392,7 +472,7 @@ public class MainActivity extends Activity {
         metricsLp.topMargin = dp(12);
 
         addRiderMetric(metrics, "نسبة القبول", acceptance);
-        addRiderMetric(metrics, "وقت العمل", worked);
+        addWorkTimeMetric(metrics, detail, worked);
 
         String planned = (!plannedStart.isEmpty() || !plannedEnd.isEmpty())
                 ? formatShiftTime(plannedStart) + " - "
@@ -598,35 +678,56 @@ public class MainActivity extends Activity {
         hintParams.bottomMargin = dp(10);
         content.addView(hint, hintParams);
 
-        int activeRiders = 0;
-        int ridersWithDeliveries = 0;
+        int readyCount = 0;
+        int workingCount = 0;
+        int breakCount = 0;
+        int tempCount = 0;
+        int lateCount = 0;
+
         for (int i = 0; i < liveRiderNames.size(); i++) {
             String state = i < liveRiderStates.size()
                     ? liveRiderStates.get(i) : "";
-            String st = state.toLowerCase(java.util.Locale.ROOT);
-            if (!st.contains("offline") && !st.contains("inactive")
-                    && !st.contains("not active")
-                    && (st.contains("active") || st.contains("online")
-                    || st.contains("available") || st.equals("working"))) {
-                activeRiders++;
-            }
-            if (i < liveRiderDetails.size()
-                    && liveRiderDetails.get(i).optBoolean("hasActiveDeliveries", false)) {
-                ridersWithDeliveries++;
+            String st = state == null ? ""
+                    : state.toLowerCase(java.util.Locale.ROOT);
+
+            if (st.contains("break")) {
+                breakCount++;
+            } else if (st.contains("temp")) {
+                tempCount++;
+            } else if (st.contains("late")) {
+                lateCount++;
+            } else if (st.contains("ready") || st.contains("available")) {
+                readyCount++;
+            } else if (st.contains("working") || st.equals("active")
+                    || st.contains("online")) {
+                workingCount++;
             }
         }
 
-        LinearLayout summaryRow = new LinearLayout(this);
-        summaryRow.setOrientation(LinearLayout.HORIZONTAL);
-        summaryRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams summaryParams = params(-1, -2);
-        summaryParams.bottomMargin = dp(14);
-        content.addView(summaryRow, summaryParams);
-        addRiderMetric(summaryRow, "إجمالي المناديب",
-                String.valueOf(liveRiderNames.size()));
-        addRiderMetric(summaryRow, "النشطون", String.valueOf(activeRiders));
-        addRiderMetric(summaryRow, "لديهم طلبات نشطة",
-                String.valueOf(ridersWithDeliveries));
+        String[] statusLabels = {
+                "Ready", "Working", "Break",
+                "Temp", "Late", "الإجمالي"
+        };
+        int[] statusValues = {
+                readyCount, workingCount, breakCount,
+                tempCount, lateCount, liveRiderNames.size()
+        };
+
+        for (int r = 0; r < 2; r++) {
+            LinearLayout statusRow = new LinearLayout(this);
+            statusRow.setOrientation(LinearLayout.HORIZONTAL);
+            statusRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            LinearLayout.LayoutParams statusRowParams = params(-1, -2);
+            statusRowParams.bottomMargin = dp(7);
+            content.addView(statusRow, statusRowParams);
+
+            for (int c = 0; c < 3; c++) {
+                int index = r * 3 + c;
+                addRiderMetric(statusRow, statusLabels[index],
+                        String.valueOf(statusValues[index]));
+            }
+        }
 
         Button refreshButton = new Button(this);
         refreshButton.setText("⟳  تحديث البيانات  •  تلقائي كل 30 ثانية");
@@ -705,68 +806,6 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams countCardParams = params(-1, -2);
             countCardParams.bottomMargin = dp(16);
             content.addView(countCard, countCardParams);
-
-            int activeRidersCount = 0;
-            int ridersWithOrdersCount = 0;
-
-            for (int i = 0; i < liveRiderNames.size(); i++) {
-                String stateValue = i < liveRiderStates.size()
-                        ? liveRiderStates.get(i) : "";
-                String normalizedState = stateValue == null
-                        ? "" : stateValue.toLowerCase(java.util.Locale.ROOT);
-
-                if (normalizedState.contains("working")
-                        || normalizedState.equals("active")
-                        || normalizedState.contains("online")
-                        || normalizedState.contains("available")) {
-                    activeRidersCount++;
-                }
-
-                if (i < liveRiderDetails.size()) {
-                    JSONObject d = liveRiderDetails.get(i);
-                    if (d != null && (d.optBoolean("hasActiveDeliveries", false)
-                            || d.optInt("activeDeliveriesCount", 0) > 0)) {
-                        ridersWithOrdersCount++;
-                    }
-                }
-            }
-
-            LinearLayout statsRow = new LinearLayout(this);
-            statsRow.setOrientation(LinearLayout.HORIZONTAL);
-            statsRow.setGravity(Gravity.CENTER_VERTICAL);
-
-            String[] statLabels = {"في الشغل", "معاهم أوردر", "إجمالي"};
-            int[] statValues = {activeRidersCount, ridersWithOrdersCount,
-                    liveRiderNames.size()};
-
-            for (int si = 0; si < statLabels.length; si++) {
-                LinearLayout statCard = column();
-                statCard.setGravity(Gravity.CENTER);
-                statCard.setPadding(dp(5), dp(12), dp(5), dp(12));
-                statCard.setBackground(shape(Color.rgb(24, 24, 24), 12));
-
-                TextView statNumber = makeText(
-                        String.valueOf(statValues[si]), 22, Color.WHITE);
-                statNumber.setTypeface(null, Typeface.BOLD);
-                statNumber.setGravity(Gravity.CENTER);
-                statCard.addView(statNumber, params(-1, -2));
-
-                TextView statLabel = makeText(
-                        statLabels[si], 11, Color.rgb(255, 160, 70));
-                statLabel.setGravity(Gravity.CENTER);
-                LinearLayout.LayoutParams slp = params(-1, -2);
-                slp.topMargin = dp(4);
-                statCard.addView(statLabel, slp);
-
-                LinearLayout.LayoutParams statLp =
-                        new LinearLayout.LayoutParams(0, -2, 1f);
-                if (si > 0) statLp.leftMargin = dp(6);
-                statsRow.addView(statCard, statLp);
-            }
-
-            LinearLayout.LayoutParams statsRowLp = params(-1, -2);
-            statsRowLp.bottomMargin = dp(14);
-            content.addView(statsRow, statsRowLp);
 
             for (int i = 0; i < liveRiderNames.size(); i++) {
                 String riderState = i < liveRiderStates.size()
@@ -1010,6 +1049,17 @@ public class MainActivity extends Activity {
         syncButton.setTextColor(Color.WHITE);
         syncButton.setAllCaps(false);
         toolbar.addView(syncButton, params(-2, 48));
+
+        Button reviewButton = new Button(this);
+        reviewButton.setText("Review");
+        reviewButton.setTextColor(Color.WHITE);
+        reviewButton.setAllCaps(false);
+        toolbar.addView(reviewButton, params(-2, 48));
+
+        reviewButton.setOnClickListener(v ->
+                rosterWebView.loadUrl(
+                        "https://eg.me.logisticsbackoffice.com/dashboard/rooster/review?page=1&sizePerPage=10"));
+
         root.addView(toolbar, params(-1, -2));
 
         syncButton.setOnClickListener(v -> syncRosterData(rosterWebView, true));
@@ -1127,6 +1177,7 @@ public class MainActivity extends Activity {
                 "startingPoint:text(val(r,['starting_point.name','starting_point_name']))," +
                 "session:shift,wallet:text(bal),performance:percent(perf)," +
                 "acceptance:percent(acc),worked:duration(worked)," +
+                "workedSeconds:Number(worked)||0," +
                 "late:duration(late),breakTime:duration(breaks)," +
                 "location:(lat!==''&&lon!==''?text(lat)+', '+text(lon):text(loc))," +
                 "latitude:text(lat),longitude:text(lon)," +
