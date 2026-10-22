@@ -504,6 +504,32 @@ public class MainActivity extends Activity {
         String plannedStart = detail.optString("plannedShiftStart", "");
         String plannedEnd = detail.optString("plannedShiftEnd", "");
         String orderLocation = detail.optString("orderLocation", "").trim();
+        String latestOrderCode = detail.optString("latestOrderCode", "").trim();
+        String pickupAddress = detail.optString("pickupAddress", "").trim();
+        String dropoffAddress = detail.optString("dropoffAddress", "").trim();
+
+        // استخدم أول أوردر محفوظ كخطة بديلة لو الحقول المنفصلة فارغة.
+        JSONArray cardOrders = getRiderOrders(detail);
+        if (cardOrders != null && cardOrders.length() > 0) {
+            JSONObject firstOrder = cardOrders.optJSONObject(0);
+            if (firstOrder != null) {
+                if (latestOrderCode.isEmpty()) {
+                    latestOrderCode = firstOrder.optString("order_code",
+                            firstOrder.optString("orderCode",
+                                    firstOrder.optString("code", ""))).trim();
+                }
+                if (pickupAddress.isEmpty()) {
+                    pickupAddress = firstOrder.optString("pickup_address",
+                            firstOrder.optString("pickupAddress", "")).trim();
+                }
+                if (dropoffAddress.isEmpty()) {
+                    dropoffAddress = firstOrder.optString("dropoff_address",
+                            firstOrder.optString("dropoffAddress",
+                                    firstOrder.optString("delivery_address", ""))).trim();
+                }
+            }
+        }
+
         int orderCount = Math.max(0, detail.optInt("activeDeliveriesCount", 0));
         String orderCountLabel = detail.optBoolean("hasActiveDeliveries", false)
                 ? String.valueOf(orderCount) : "0";
@@ -567,7 +593,14 @@ public class MainActivity extends Activity {
         addRiderInfoBox(details, "المحفظة", wallet, false);
         addRiderInfoBox(details, "الأداء والتوصيلات", performance, false);
         addRiderInfoBox(details, "الشيفت الحالي", session, false);
-        addRiderInfoBox(details, "مكان الأوردر", orderLocation, true);
+        addRiderInfoBox(details, "رقم الأوردر",
+                latestOrderCode.isEmpty() ? "لا يوجد رقم أوردر ظاهر" : latestOrderCode, true);
+        addRiderInfoBox(details, "عنوان الاستلام",
+                pickupAddress.isEmpty() ? "عنوان الاستلام غير متاح" : pickupAddress, true);
+        addRiderInfoBox(details, "عنوان التسليم",
+                dropoffAddress.isEmpty()
+                        ? (orderLocation.isEmpty() ? "عنوان التسليم غير متاح" : orderLocation)
+                        : dropoffAddress, true);
 
         LinearLayout.LayoutParams cardLp = params(-1, -2);
         cardLp.bottomMargin = dp(11);
