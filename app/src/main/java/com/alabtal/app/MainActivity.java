@@ -1529,12 +1529,12 @@ public class MainActivity extends Activity {
                 "var bal=val(r,['wallet_info.balance','wallet.balance','wallet_balance']);" +
                 "var perf=val(r,['performance.utilization_rate','utilization_rate','performance']);" +
                 "if(perf&&typeof perf==='object')perf=val(perf,['utilization_rate','rate','value']);" +
-                "var acc=val(r,['acceptance_rate','performance.acceptance_rate']);" +
-                "var worked=val(r,['time_spent.worked_seconds','time_spent.workedSeconds'," +
-                "'time_spent.total_worked_seconds','worked_seconds','workedSeconds'," +
+                "var acc=val(r,['performance.acceptance_rate','acceptance_rate']);" +
+                "var worked=val(r,['performance.time_spent.worked_seconds','time_spent.worked_seconds','performance.time_spent.workedSeconds','time_spent.workedSeconds'," +
+                "'performance.time_spent.total_worked_seconds','time_spent.total_worked_seconds','worked_seconds','workedSeconds'," +
                 "'worked_time_seconds','worked_time','total_worked_seconds']);" +
-                "var late=val(r,['time_spent.late_seconds','late_seconds']);" +
-                "var breaks=val(r,['time_spent.break_seconds','break_seconds']);" +
+                "var late=val(r,['performance.time_spent.late_seconds','time_spent.late_seconds','late_seconds']);" +
+                "var breaks=val(r,['performance.time_spent.break_seconds','time_spent.break_seconds','break_seconds']);" +
                 "var loc=val(r,['current_location']);" +
                 "var lat=val(r,['current_location.latitude','latitude']);" +
                 "var lon=val(r,['current_location.longitude','longitude']);" +
@@ -1555,8 +1555,8 @@ public class MainActivity extends Activity {
                 "orderLocation=locParts.join(' | ');}" +
                 "var shift=text(val(r,['current_session','session','shift.name','shift_info.name']));" +
                 "if(!shift) {" +
-                "var ss=val(r,['shift_start','shift.start_time','shift_info.start_time']);" +
-                "var se=val(r,['shift_end','shift.end_time','shift_info.end_time']);" +
+                "var ss=val(r,['active_shift_started_at','shift_start','shift.start_time','shift_info.start_time']);" +
+                "var se=val(r,['active_shift_ended_at','shift_end','shift.end_time','shift_info.end_time']);" +
                 "if(ss||se)shift=text(ss)+(se?' - '+text(se):'');" +
                 "}" +
                 "var d={employeeId:text(val(r,['employee_id','id']))," +
@@ -1571,7 +1571,7 @@ public class MainActivity extends Activity {
                 "orderLocation:orderLocation,latestOrderCode:latestOrderCode," +
                 "pickupAddress:pickupAddress,dropoffAddress:dropoffAddress," +
                 "latestDeliveries:(Array.isArray(deliveries)?deliveries:[])," +
-                "activeDeliveriesCount:(function(){var n=0;for(var ai=0;ai<deliveries.length;ai++){var ast=text(val(deliveries[ai]||{},['status'])).toLowerCase();if(ast&&ast!=='completed'&&ast!=='cancelled'&&ast!=='canceled')n++;}if(n===0&&deliveries.length===0){var apiN=Number(val(r,['deliveries_info.active_deliveries_count','deliveries_info.activeDeliveriesCount','active_deliveries_count','activeDeliveriesCount']));if(isFinite(apiN)&&apiN>0)n=apiN;}return n;})()," +
+                "activeDeliveriesCount:(function(){var n=0;for(var ai=0;ai<deliveries.length;ai++){var ast=text(val(deliveries[ai]||{},['status'])).toLowerCase();if(ast&&ast!=='completed'&&ast!=='cancelled'&&ast!=='canceled')n++;}if(n===0&&deliveries.length===0){var ids=val(r,['deliveries_info.active_delivery_ids','deliveries_info.activeDeliveryIds']);if(Array.isArray(ids))n=ids.length;var apiN=Number(val(r,['deliveries_info.active_deliveries_count','deliveries_info.activeDeliveriesCount','active_deliveries_count','activeDeliveriesCount']));if(isFinite(apiN)&&apiN>0)n=apiN;}return n;})()," +
                 "hasActiveDeliveries:val(r,['deliveries_info.has_active_deliveries','deliveries_info.hasActiveDeliveries','has_active_deliveries'])===true||deliveries.some(function(o){var st=text(val(o||{},['status'])).toLowerCase();return st&&st!=='completed'&&st!=='cancelled'&&st!=='canceled';})};" +
                 "var candidates=(shiftMap[d.employeeId]||[]).filter(function(x){return x.end&&new Date(x.end).getTime()>=Date.now();}).sort(function(a,b){return new Date(a.start).getTime()-new Date(b.start).getTime();});" +
                 "if(candidates.length){var ps=candidates[0];d.plannedShiftStart=text(ps.start);d.plannedShiftEnd=text(ps.end);d.plannedShiftState=text(ps.state);d.plannedShiftTag=text(ps.tag);}" +
@@ -1579,7 +1579,8 @@ public class MainActivity extends Activity {
                 "}" +
                 "var sample=all[0]||{};" +
                 "var sampleDeliveries=sample.deliveries_info&&sample.deliveries_info.latest_deliveries;" +
-                "var schema={root:Object.keys(sample),timeSpent:Object.keys(sample.time_spent||{}),deliveriesInfo:Object.keys(sample.deliveries_info||{}),firstDelivery:Object.keys(Array.isArray(sampleDeliveries)&&sampleDeliveries.length?sampleDeliveries[0]||{}:{})};" +
+                "var samplePerformance=sample.performance||{};var sampleTimeSpent=samplePerformance.time_spent||sample.time_spent||{};" +
+                "var schema={root:Object.keys(sample),performance:Object.keys(samplePerformance),timeSpent:Object.keys(sampleTimeSpent),deliveriesInfo:Object.keys(sample.deliveries_info||{}),activeDeliveryIdsCount:Array.isArray(sample.deliveries_info&&sample.deliveries_info.active_delivery_ids)?sample.deliveries_info.active_delivery_ids.length:0,firstDelivery:Object.keys(Array.isArray(sampleDeliveries)&&sampleDeliveries.length?sampleDeliveries[0]||{}:{}),otherRiders:all.slice(0,5).map(function(x){var di=x&&x.deliveries_info||{};var ds=di.latest_deliveries;return {root:Object.keys(x||{}),deliveriesInfo:Object.keys(di),latestDeliveriesCount:Array.isArray(ds)?ds.length:0,activeDeliveryIdsCount:Array.isArray(di.active_delivery_ids)?di.active_delivery_ids.length:0};})};" +
                 "return JSON.stringify({ok:true,riders:mapped,count:mapped.length,pages:page+1,schema:schema});" +
                 "} catch(e) {return JSON.stringify({ok:false,error:String(e)});}" +
                 "})().then(function(v){window.__alabtalRosterResult=v;},function(e){window.__alabtalRosterResult=JSON.stringify({ok:false,error:String(e)});});" +
